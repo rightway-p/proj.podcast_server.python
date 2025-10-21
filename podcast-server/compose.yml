@@ -1,7 +1,6 @@
 # Castopod 자동 배포 환경을 한 번에 올리기 위한 docker compose 설정 파일입니다.
 # 각 서비스는 역할별로 분리되어 있으며, Traefik(리버스 프록시), Castopod(애플리케이션),
 # MariaDB(데이터베이스), Redis(캐시 및 큐) 컨테이너로 구성됩니다.
-version: "3.9"
 
 services:
   traefik:
@@ -35,6 +34,7 @@ services:
   castopod:
     # Castopod 본체로, 팟캐스트 RSS 생성과 에피소드 업로드/관리를 담당합니다.
     image: castopod/castopod:latest
+    platform: linux/amd64  # Apple Silicon에서는 amd64 에뮬레이션으로 실행
     env_file: .env
     environment:
       CP_DB_HOSTNAME: mariadb  # DB 호스트 이름을 docker 네트워크 서비스명으로 지정
@@ -71,8 +71,8 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}  # 루트 비밀번호(관리 용도)
       MYSQL_INITDB_SKIP_TZINFO: "1"           # 초기화 시 타임존 테이블 생성을 생략해 속도 향상
     healthcheck:
-      # mysqladmin ping 명령으로 DB가 준비됐는지 주기적으로 확인합니다.
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      # mariadb-admin ping 명령으로 DB가 준비됐는지 주기적으로 확인합니다.
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -19,3 +19,10 @@
 ## 2025-10-21 22:53 KST
 - Committed AI documentation assets (`docs: add podcast automation references`).
 - Committed Castopod compose stack with Korean comments (`infra: scaffold castopod stack`).
+
+## 2025-10-21 23:02 KST
+- Escaped `$` in `MYSQL_ROOT_PASSWORD` within `.env` to satisfy docker compose variable parsing.
+- Updated `compose.yml` to drop deprecated `version` field and enforce `linux/amd64` platform for Castopod on Apple Silicon.
+
+## 2025-10-21 23:10 KST
+- Replaced MariaDB healthcheck command with `mariadb-admin ping` to match binaries provided in the 11.x image.
