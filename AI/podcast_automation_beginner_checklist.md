@@ -1,0 +1,39 @@
+# Podcast Automation Beginner Checklist
+
+- [x] 1. 개념 이해하기
+  - [x] 목표 파악: 유튜브 → mp3 변환 → Castopod 업로드 → RSS 배포
+  - [x] 주요 구성요소 역할 숙지 (Castopod, Scheduler, Downloader, Uploader, Dashboard, Docker)
+- [x] 2. Docker 기본
+  - [x] 도커 컨테이너/이미지 개념 이해
+  - [x] Castopod, DB 등 서비스가 컨테이너로 분리된 구조 확인
+- [x] 3. 사전 준비
+  - [x] Docker Desktop 설치 완료
+  - [x] 도메인/localhost 접속 방법 결정
+  - [x] 기본 폴더 구조(`compose.yml`, `.env`, `data/`, `traefik/`) 준비
+- [ ] 4. Castopod 서버 실행
+  - [ ] `docker compose up -d` 실행해 서비스 구동
+  - [ ] 브라우저에서 Castopod 관리자 화면 접속
+  - [ ] 관리자 계정·첫 채널 생성
+  - [ ] RSS 피드 주소 확보
+- [ ] 5. 유튜브 → 오디오 변환 테스트
+  - [ ] `yt-dlp` 설치 및 테스트 다운로드
+  - [ ] `ffmpeg`로 mp3 변환 확인
+  - [ ] 변환된 mp3를 Castopod에 수동 업로드
+- [ ] 6. 자동화 파이프라인 설계
+  - [ ] 스케줄러 주기 설정
+  - [ ] 다운로드, 변환, 메타데이터, 업로드 단계 정의
+  - [ ] yt-dlp, ffmpeg, Castopod API 연동 방식 결정
+- [ ] 7. 대시보드 구상
+  - [ ] 홈, 소스 관리, 라우팅, 로그, 저장소, 백업, 통계 탭 구성안 작성
+  - [ ] 비개발자용 UX 고려사항 정리
+- [ ] 8. 저장소 전략
+  - [ ] SSD, NAS, S3 등 저장소 옵션 비교
+  - [ ] 경로/마운트 변경 시 도커 설정 수정 방안 마련
+- [ ] 9. 백업 및 복원
+  - [ ] DB/오디오 백업 주기 정의
+  - [ ] 복원 절차와 알림 흐름 설계
+- [ ] 10. 진행 로드맵 실행
+  - [ ] 1주차: 환경 구축 완료 확인
+  - [ ] 2주차: 수동 발행 및 RSS 검증
+  - [ ] 3주차: 변환 도구 실습 완료
+  - [ ] 4주차: 자동화 파이프라인 및 대시보드 설계 마무리
