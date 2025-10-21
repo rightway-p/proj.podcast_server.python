@@ -15,3 +15,7 @@
 ## 2025-10-21 22:44 KST
 - Created `.gitignore` and `.gitattributes` to establish repository defaults.
 - Made initial commit `chore: add repository defaults` containing the housekeeping files.
+
+## 2025-10-21 22:53 KST
+- Committed AI documentation assets (`docs: add podcast automation references`).
+- Committed Castopod compose stack with Korean comments (`infra: scaffold castopod stack`).
