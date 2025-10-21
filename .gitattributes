@@ -1,0 +1,18 @@
+# 기본적으로 텍스트 파일은 자동으로 개행을 정규화합니다.
+* text=auto
+
+# 스크립트 및 구성 파일은 항상 LF 개행을 사용하게 설정합니다.
+*.py text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.env text eol=lf
+
+# 바이너리 파일은 Git이 diff를 시도하지 않도록 지정합니다.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mp3 binary
+*.mp4 binary

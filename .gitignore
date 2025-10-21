@@ -1,0 +1,43 @@
+# macOS 시스템 파일
+.DS_Store
+
+# IDE / 편집기 설정
+.idea/
+.vscode/
+*.code-workspace
+
+# 파이썬 빌드 산출물
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# 가상환경
+.venv/
+venv/
+ENV/
+
+# 테스트 / 캐시
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 로그 / 임시파일
+*.log
+*.tmp
+*.swp
+
+# Docker 및 Compose 실행 시 생성물
+podcast-server/data/
+podcast-server/traefik/acme.json
+
+# 환경 변수 파일 (민감 정보)
+.env
+*.env
+podcast-server/.env
+
+# 기타
+*.bak
