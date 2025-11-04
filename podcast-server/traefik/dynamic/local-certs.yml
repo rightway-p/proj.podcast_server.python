@@ -1,0 +1,10 @@
+# Traefik dynamic TLS configuration for localhost mkcert certificate.
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/localhost.pem
+        keyFile: /certs/localhost-key.pem
+  certificates:
+    - certFile: /certs/localhost.pem
+      keyFile: /certs/localhost-key.pem
