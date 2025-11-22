@@ -71,3 +71,111 @@
 - Traefik 서비스에 동적 TLS 구성(`traefik/dynamic/local-certs.yml`)을 추가하고 mkcert 인증서 경로를 마운트했습니다.
 - Traefik compose 정의에 파일 프로바이더와 로컬 인증서 볼륨을 연동해 `https://localhost`에서 신뢰된 인증서를 사용하도록 준비했습니다.
 - README에 mkcert 설치·생성·재시작 절차를 문서화해 macOS에서 보안 경고 없이 접근할 수 있도록 안내했습니다.
+
+## 2025-11-04 20:37 KST
+- `TRUST_STORES=system mkcert ...` 명령으로 Traefik용 `localhost.pem`/`localhost-key.pem`을 생성해 Java 키스토어 경고 없이 인증서를 준비했습니다.
+- 생성한 인증서를 Traefik 볼륨에 배치한 뒤 `docker compose up -d traefik --force-recreate`로 리버스 프록시를 재시작해 HTTPS 오류(`ERR_SSL_UNRECOGNIZED_NAME_ALERT`)를 해소했습니다.
+
+## 2025-11-04 20:39 KST
+- 자동화 파이프라인 6단계(스케줄러 → 다운로더 → 트랜스코더 → 메타데이터 → 업로더 → 노티파이어)를 정의하고 실행 순서·실패 처리 전략을 정리했습니다.
+- `supercronic` 컨테이너에서 일 2회(07:00/19:00 KST) 실행하도록 기본 크론(`PIPELINE_CRON=0 7,19 * * *`)을 선정하고 `.env` 변수화 계획에 반영했습니다.
+- `yt-dlp`, `ffmpeg`, Castopod REST API 인증 흐름을 포함한 통합 방식(토큰 기반 업로드, JSON payload 전달)으로 정리해 체크리스트의 6번 항목을 완료 처리했습니다.
+
+## 2025-11-04 20:41 KST
+- 상세 설계 문서 `AI/automation_pipeline_plan.md`를 신규 작성해 단계별 모듈, 환경 변수, 폴더 구조, 에러 처리 전략을 시각 다이어그램과 함께 정리했습니다.
+- 가이드와 체크리스트에서 새 문서를 직접 참조하도록 링크를 추가해 실제 작업 내용을 빠르게 확인할 수 있게 했습니다.
+
+## 2025-11-04 20:56 KST
+- 자동화 관리 방향을 REST API(+SQLite) → TUI → 웹 프런트 순으로 확장하는 3-Phase 로드맵으로 확정하고 관련 TODO를 가이드, 체크리스트, README에 반영했습니다.
+- 체크리스트에 백엔드 API 구축, TUI 도구 구현, 웹 UI 검토 등 하위 작업을 세분화해 추적 가능하도록 정리했습니다.
+
+## 2025-11-04 20:59 KST
+- README의 Castopod 접속 안내에 로그인(`https://localhost/cp-auth/login`)과 관리자 콘솔(`https://localhost/cp-admin`) URL을 명시하고 표기 정렬을 수정했습니다.
+
+## 2025-11-04 21:09 KST
+- `automation-service/` FastAPI 프로젝트를 스캐폴딩하고 SQLite 기반 데이터모델(채널, 플레이리스트, 스케줄, 실행 로그)을 SQLModel로 정의했습니다.
+- CRUD 엔드포인트와 `/health` 응답을 제공하는 라우터를 구성하고 Dockerfile, 패키지 메타데이터(pyproject)를 추가했습니다.
+- README와 파이프라인 설계 문서에 새 API 사용 방법을 기록하고 체크리스트 6-1 하위 작업 상태를 업데이트했습니다.
+
+## 2025-11-04 21:12 KST
+- Automation Service 실행 가이드를 conda 환경(`podcast`) 기준으로 갱신하고 `uvicorn ... --reload` 명령의 의미를 README·서비스 README에 명시했습니다.
+
+## 2025-11-04 21:14 KST
+- `AI/technical_notes.md`를 신설해 FastAPI/Uvicorn, SQLite/SQLModel, conda 환경 등 핵심 기술 설명을 모았습니다.
+- 가이드·체크리스트·README에서 기술 노트 위치를 안내해 언제든 참고할 수 있도록 연결했습니다.
+
+## 2025-11-04 21:26 KST
+- `automation-service/tests/`에 FastAPI 라우트와 CRUD 로직을 검증하는 pytest 스위트를 추가하고 인메모리 SQLite를 공유하는 테스트 픽스처를 구성했습니다.
+- conda 환경(`podcast`)에서 `pip install -e automation-service[dev]` 후 `pytest`를 실행해 5개의 테스트가 모두 통과함을 확인했습니다.
+- README, 서비스 README, 기술 노트에 테스트 실행 절차를 문서화하고 체크리스트 6-1 항목에 테스트 완료 상태를 반영했습니다.
+
+## 2025-11-04 21:34 KST
+- `datetime.utcnow()` 사용 지점을 모두 `datetime.now(UTC)` 기반의 헬퍼로 교체해 경고 없이 타임존 정보를 포함한 타임스탬프를 저장하도록 정비했습니다.
+- pytest를 재실행해 5개 테스트가 경고 없이 통과(단, FastAPI의 `on_event` 경고만 유지)함을 확인하고, 기술 노트에 UTC 처리 방식을 기록했습니다.
+
+## 2025-11-04 21:38 KST
+- FastAPI의 `@app.on_event` 의존성을 lifespan 컨텍스트(`automation_service.main.lifespan`)로 대체해 시작 시 DB 초기화를 수행하도록 수정했습니다.
+- pytest를 다시 실행해 5개 테스트 모두 통과했으며, 기술 노트에 lifespan 전환 내용을 추가했습니다.
+
+## 2025-11-04 21:47 KST
+
+## 2025-11-20 23:05 KST
+- 사용자 피드백을 바탕으로 “UI에서 최소 입력으로 작업 생성 → 파이프라인 실행 → 진행률 확인” 흐름을 명확히 정의했습니다.
+- `AI/automation_pipeline_plan.md`에 9장(2025-11-20 재정리)을 추가해 이상적인 Step-by-step 절차, 필요한 API/UX 기능, 커밋 전략을 문서화했습니다.
+- 앞으로 진행할 TODO(작업 생성 모달, quick-create API, targeted pipeline 실행 등)를 표 형태로 정리해 후속 작업 지침을 마련했습니다.
+- `pipeline/pipeline_client` 패키지를 추가해 REST API에서 채널/플레이리스트/스케줄을 읽어오는 `AutomationServiceClient`와 `PipelineConfiguration` 모델을 구현했습니다.
+- FastAPI 앱을 ASGI transport로 불러오는 pytest 스위트를 작성해 활성/비활성 플레이리스트 분기와 중첩 구조를 검증했습니다.
+- README, 파이프라인 설계서, 기술 노트, 체크리스트에 새로운 파이프라인 클라이언트 및 테스트 실행 절차를 반영했습니다.
+
+## 2025-11-04 23:29 KST
+- `pipeline/pipeline_runner/main.py`를 추가해 REST API에서 받은 채널/플레이리스트 구성을 기반으로 yt-dlp를 실행하는 `pipeline-run` CLI를 구현했습니다.
+- 파이프라인 실행 결과를 Automation Service의 `/runs` 엔드포인트로 기록하도록 `AutomationServiceClient`에 `create_run`/`update_run` 메서드를 추가했습니다.
+- `yt-dlp` 의존성을 `pipeline/pyproject.toml`에 등록하고, `README` 및 기술 노트에 실행 방법(`pipeline-run --dry-run`)을 문서화했습니다.
+
+## 2025-11-05 00:10 KST
+- Castopod 업로드 자동화에 필요한 OAuth 자격 증명을 준비할 수 있도록 `credentials.template.md`를 추가하고 `.gitignore`에 `credentials.local.md` 예시를 등록했습니다.
+- README, pipeline README, 기술 노트에 `pipeline-run --dry-run` 실행 전 설치해야 할 `ffmpeg/yt-dlp` 및 자격 증명 문서를 참고하도록 문구를 보강했습니다.
+
+## 2025-11-05 00:19 KST
+- `pipeline-run`이 재생목록 메타데이터를 생성하도록 확장해 `downloads/<slug>/<playlist>/metadata/playlist.json`을 작성하고 썸네일·info JSON 경로를 함께 저장합니다.
+- `pipeline_client.AutomationServiceClient`에 `/runs` 상태 기록용 메서드를 추가하고, 실행 중 각 재생목록의 상태를 자동으로 업데이트하도록 조정했습니다.
+- README, pipeline README, 기술 노트에 메타데이터 출력 경로와 사전 요구사항(yt-dlp/ffmpeg, 자격증명 문서)을 문서화했습니다.
+
+## 2025-11-05 00:45 KST
+- `pipeline/pipeline_runner/artwork.py`를 추가해 플레이리스트·에피소드 썸네일을 정사각형(검은 배경) JPEG으로 변환하고 메타데이터에 `square_cover`·`thumbnail_square` 필드를 기록하도록 확장했습니다.
+- Pillow 의존성과 회귀 테스트(`pipeline/tests/test_artwork.py`)를 추가하고 `conda run -n podcast python -m pytest`로 7개 테스트 통과를 확인했습니다.
+- 개발 환경 설치 절차를 단순화하기 위해 `pipeline/requirements-dev.txt`를 신설하고 가이드/체크리스트/README에 `python -m pip install -r requirements-dev.txt` 지침을 반영했습니다.
+
+## 2025-11-05 01:20 KST
+- `web-frontend/`에 React + Vite + Chakra UI 대시보드 스캐폴딩을 추가해 Automation Service 데이터를 시각화했습니다.
+- Bearer Token 입력 기반의 간단한 로그인 폼을 제공해 향후 인증 연계를 준비했고, 채널/플레이리스트/스케줄/최근 실행 정보를 카드 형태로 표시했습니다.
+- `.env.example`, 실행 README, 루트 `README.md`, 가이드, 체크리스트에 6-3 실행 방법과 UI 스택 정보를 문서화했습니다.
+- FastAPI 앱에 CORS 미들웨어를 추가하고 `AUTOMATION_CORS_ALLOW_ORIGINS` 환경 변수로 허용 오리진을 제어할 수 있도록 하여 웹 프런트엔드에서 API를 호출할 때 발생하던 `Network Error`를 해결했습니다.
+
+## 2025-11-05 01:40 KST
+- 루트 README에 자동화 로드맵 요약, 세부 확장 계획, 문서 안내 테이블을 추가해 흩어져 있던 정보를 한 눈에 볼 수 있게 정리했습니다.
+- `pipeline/README.md`와 `automation-service/README.md`를 재작성해 설치/실행/향후 과제 섹션을 명확히 하고, 루트 README·가이드와 중복되던 내용을 줄였습니다.
+- 가이드/체크리스트에 “자동화 기능 확장 로드맵”과 향후 TODO(채널 마법사, 증분 스케줄러, 통합 관리 UI)를 명시해 다음 단계가 무엇인지 명확히 기록했습니다.
+- 웹 대시보드에 채널/플레이리스트/스케줄 생성 모달, 실행 로그 패널(필터 + 수동 실행), 자동 새로고침 토글을 추가해 체크리스트 6-3 잔여 항목을 완료했습니다.
+
+## 2025-11-18 00:00 KST
+- Automation Service에 Castopod DB 읽기 엔드포인트 `GET /castopod/podcasts`를 추가하고 pymysql 의존성을 포함했습니다. 환경변수(`AUTOMATION_CASTOPOD_DATABASE_URL` 혹은 HOST/USERNAME/PASSWORD/DB_NAME 조합)로 MariaDB 연결을 받아 cp_podcasts 테이블에서 `id/guid/title`을 반환합니다.
+- 웹 대시보드 플레이리스트 모달에 “Castopod DB 조회” 버튼과 드롭다운을 추가해 UUID/제목을 바로 불러와 선택 입력할 수 있게 했습니다. 신규 API 클라이언트 `fetchCastopodPodcasts`와 타입을 추가하고 README에 기능 설명을 반영했습니다.
+
+## 2025-11-19 09:10 KST
+- automation-service `config.py`에 `.env` 자동 로드를 추가하고, Castopod DB DSN/개별 변수 예시를 담은 `.env.example`를 작성했습니다. 로컬 `.env`에는 Castopod DSN을 URL 인코딩한 비밀번호로 설정했습니다.
+- podcast-server `compose.yml`에서 MariaDB 포트 `3306:3306`을 열어 automation-service가 호스트에서 직접 DB 읽기 가능하도록 수정했습니다.
+
+## 2025-11-20 20:25 KST
+- FastAPI가 `sqlite:///./automation_service.db`를 읽기 전용으로 마운트해 500이 발생하는 문제를 피하기 위해, `.env`에 `AUTOMATION_DATABASE_URL=sqlite:///./automation_service_local.db`를 지정하고 uvicorn을 재시작했습니다.
+- 새 DB 파일(`automation_service_local.db`)을 생성했으므로, 채널/플레이리스트 데이터를 다시 등록해 사용을 재개하도록 안내했습니다.
+
+## 2025-11-20 21:40 KST
+- pipeline-run에 Castopod REST API 업로드 단계를 추가했습니다. `CASTOPOD_API_BASE_URL/USERNAME/PASSWORD/USER_ID` 환경 변수로 인증하고, 각 에피소드 mp3·정사각 썸네일을 업로드한 뒤 즉시 발행합니다. Castopod 컨테이너 `.env`에는 `restapi.enabled=true` 등 REST API 옵션을 추가했습니다.
+- Automation Service `Job` 모델에 `should_castopod_upload` 필드를 도입하고 DB 마이그레이션 helper를 추가했습니다. 웹 대시보드 작업 큐 모달에는 “Castopod 자동 업로드” 스위치를 넣어 기본 수동, 필요 시 자동 업로드를 선택할 수 있습니다.
+- pipeline-run이 `/jobs/` 큐를 읽어 `queued` 작업을 순차 처리하도록 확장하고, 작업 상태/노트를 자동 업데이트하게 만들었습니다. 스케줄 실행과 동일한 경로를 사용해 다운로드·메타데이터 생성·(옵션)Castopod 업로드가 수행됩니다.
+
+## 2025-11-20 23:10 KST
+- 작업 큐 진행률/취소 기능을 추가했습니다. Automation Service `jobs` 테이블에 `progress_total`, `progress_completed`, `current_task`, `progress_message` 필드를 도입하고 `/jobs/{id}` 조회를 제공했습니다. SQLite 자동 마이그레이션을 확장하고 삭제 시 관련 데이터가 함께 제거되도록 관계에 cascade 옵션을 설정했습니다.
+- `pipeline-run`이 큐 작업을 처리할 때 단계별 상태를 PATCH하고, 각 에피소드 업로드마다 진행률을 업데이트합니다. 사용자가 웹에서 `취소`를 누르면 상태가 `cancelling`으로 바뀌고 파이프라인이 즉시 중단하며 `cancelled`로 마무리합니다.
+- 웹 대시보드 작업 큐 카드에 진행 단계, 퍼센트 Progress Bar, 메시지를 표시하고 취소 버튼을 추가했습니다. Manual run 버튼은 `queued` 상태에서만 활성화되며 진행 상황과 메시지를 표시합니다. README/문서도 새로운 UX와 REST API 설정을 반영했습니다.
