@@ -5,6 +5,19 @@
 
 ---
 
+
+## ✅ 진행 현황
+- [x] 1️⃣ 개념 이해하기
+- [x] 2️⃣ 도커(Docker)란 무엇인가?
+- [x] 3️⃣ 사전 준비 (Docker Desktop 설치·폴더 구조 구성)
+- [x] 4️⃣ Castopod 서버 실행 (localhost 접근 확인)
+- [ ] 5️⃣ 유튜브 → 오디오 변환 테스트
+- [x] 6️⃣ 자동화 구조 설계
+- [ ] 7️⃣ 대시보드 구성
+- [ ] 8️⃣ 저장소 전략 수립
+- [ ] 9️⃣ 백업 및 복원 체계 구축
+- [ ] 🔟 진행 로드맵 실습 전체 완료
+
 ## 1️⃣ 개념 이해하기
 
 ### 🎯 목표
@@ -107,6 +120,26 @@ yt-dlp -x --audio-format mp3 https://youtube.com/watch?v=영상ID
 
 ## 6️⃣ 자동화 구조 (스케줄러와 파이프라인)
 
+> 📄 **자세한 설계는 `AI/automation_pipeline_plan.md` 문서를 참고하세요.** 단계별 큐 구조, 환경 변수, 오류 처리 방식까지 정리되어 있습니다.
+
+> ℹ️ **기술 설명은 `AI/technical_notes.md`에 정리되어 있습니다.** FastAPI/Uvicorn, SQLite, conda 환경 등 핵심 개념을 수시로 업데이트합니다.
+
+### 🚧 향후 구현 로드맵
+1. **Phase 1 – REST API + SQLite 백엔드**
+   - FastAPI 서비스에서 플레이리스트·채널·스케줄 CRUD 제공
+   - 파이프라인은 API를 통해 설정을 조회하고 실행 로그(`/runs`)를 기록
+   - `pipeline-run --dry-run --download-dir downloads`로 yt-dlp 다운로드 흐름을 즉시 검증 가능 (실행 전 `ffmpeg` 설치 필요)
+   - `--dry-run` 옵션을 제거하면 실제 오디오(mp3)가 `downloads/<slug>/<playlist>/` 구조로 저장되고 실행 로그가 `/runs`에 기록됨
+2. **Phase 2 – TUI 관리자 도구**
+   - `pipeline-tui` 명령으로 `Textual` 기반 UI 실행
+   - 채널/플레이리스트/스케줄 CRUD 및 즉시 실행 트리거 수행
+   - SSH 환경에서도 플레이리스트 등록/해제·스케줄 설정 가능
+3. **Phase 3 – 웹 프런트엔드(선택)**
+   - 동일 REST API 위에 React/Next UI 구성해 비개발자 접근성 강화
+   - 진행 상황 모니터링, 로그 시각화, 알림 설정 등 확장
+   - Castopod 재생목록 UUID를 웹 모달에서 바로 선택: Automation Service에 Castopod DB 접속 정보를 넣으면(`AUTOMATION_CASTOPOD_DATABASE_URL` 등) “Castopod DB 조회” 버튼으로 UUID/제목 목록을 불러와 플레이리스트에 매핑할 수 있음
+   - `pipeline-run`에서 Castopod REST API(`CASTOPOD_API_*`)로 자동 업로드·발행이 가능하며, 웹 작업 큐에서는 “Castopod 자동 업로드” 토글로 개별 작업의 업로드 여부를 제어
+
 자동화는 여러 단계를 **자동으로 연결**한 흐름입니다.
 
 ### 🔁 처리 순서
@@ -126,6 +159,88 @@ yt-dlp -x --audio-format mp3 https://youtube.com/watch?v=영상ID
 | **transcoder** | 오디오 변환 | ffmpeg으로 품질 표준화 |
 | **metadata-builder** | 설명 분석 | 타임스탬프 → 챕터 변환 |
 | **uploader** | Castopod 업로드 | 자동 에피소드 생성 |
+
+### 🖼️ 메타데이터 & 커버 자동화
+- `pipeline-run` 실행 시 각 플레이리스트 폴더에는 `metadata/playlist.json`과 함께 정사각형 커버 이미지가 생성됩니다.
+  - 채널·플레이리스트용: `metadata/artwork/playlist_cover.jpg`
+  - 에피소드용: `metadata/artwork/episodes/<video_id>.jpg`
+- 썸네일 원본 비율을 유지한 채 위·아래를 검은색으로 채워 1:1 비율(캐스트포드 표준)에 맞춥니다.
+- 메타데이터에는 `channel.square_cover`, `playlist.square_cover`, `episodes[].thumbnail_square` 필드가 추가되어 Castopod 업로드나 대시보드에서 그대로 참조할 수 있습니다.
+- 실행 준비 절차
+  ```bash
+  conda activate podcast
+  cd pipeline
+  python -m pip install -r requirements-dev.txt
+  python -m pytest
+  ```
+  - Pillow/pytest 등 개발 의존성이 함께 설치되며, `conda run -n podcast python -m pytest` 기준으로 7개의 파이프라인 테스트가 통과하는 것을 확인했습니다.
+
+### 🚀 빠른 실행 순서 (복붙용)
+1. **환경 준비 (최초 1회)**
+   ```bash
+   conda activate podcast
+   cd ~/WorkSpace/Dev/proj.podcastserver.python/pipeline
+   python -m pip install -r requirements-dev.txt
+   ```
+2. **Automation Service 구동 (새 터미널)**
+   ```bash
+   conda activate podcast
+   cd ~/WorkSpace/Dev/proj.podcastserver.python/automation-service
+   uvicorn automation_service.main:app --reload
+   ```
+3. **파이프라인 실행**
+   - 드라이런(메타데이터만):
+     ```bash
+     conda activate podcast
+     cd ~/WorkSpace/Dev/proj.podcastserver.python/pipeline
+     pipeline-run --dry-run --download-dir downloads
+     ```
+   - 실제 다운로드:
+     ```bash
+     conda activate podcast
+     cd ~/WorkSpace/Dev/proj.podcastserver.python/pipeline
+     pipeline-run --download-dir downloads
+     ```
+4. **결과 확인 경로**
+  ```
+  ~/WorkSpace/Dev/proj.podcastserver.python/pipeline/downloads/<채널>/<플레이리스트>/metadata/playlist.json
+  ~/WorkSpace/Dev/proj.podcastserver.python/pipeline/downloads/<채널>/<플레이리스트>/metadata/artwork/playlist_cover.jpg
+  ~/WorkSpace/Dev/proj.podcastserver.python/pipeline/downloads/<채널>/<플레이리스트>/metadata/artwork/episodes/<video_id>.jpg
+  ```
+
+### 🌐 6-3 웹 프런트엔드 (선택)
+- UI 스택: **React + Vite + Chakra UI** (`web-frontend/` 디렉터리)
+- 기능 요약
+  - Automation Service REST API에서 채널/플레이리스트/스케줄/실행 로그를 불러와 카드 형태로 표시
+  - Bearer Token 입력 카드 + 저장/토큰 없이 계속하기, 로그아웃 버튼 제공
+- 다크/라이트 모드 전환, 수동/자동 새로고침 토글, 실행 로그 패널(필터 + 수동 실행 버튼)
+- 채널/플레이리스트/스케줄 CRUD 모달 + 작업 큐(Queue) 관리 패널 추가 — 실행 전 대기열에서 추가/제거 가능
+  - 큐 실행 시 Automation Service의 `/runs/`와 `/jobs/` 엔드포인트에 기록되어 `pipeline-run`이 순차 처리할 준비를 함
+- 실행 방법
+  ```bash
+  cd ~/WorkSpace/Dev/proj.podcastserver.python/web-frontend
+  cp .env.example .env   # 필요 시 API 주소 수정
+  npm install
+  npm run dev -- --host
+  ```
+  - 기본 API 주소는 `http://127.0.0.1:8000`이며, `Automation Service`가 반드시 실행 중이어야 합니다.
+  - API에서 CORS 허용을 위해 `automation-service`의 `.env` 또는 실행 환경에 `AUTOMATION_CORS_ALLOW_ORIGINS`를 설정할 수 있습니다. (기본: `http://localhost:5173`, `http://127.0.0.1:5173`)
+  - 브라우저에서 `http://localhost:5173` 접속 후 Bearer Token 입력 없이도 현황을 확인할 수 있습니다.
+  - 큐 사용 흐름: (1) 플레이리스트 카드의 **큐에 추가** 버튼 → Castopod 채널/UUID와 작업 유형 선택 → (2) 큐 패널에서 필요 시 제거 → (3) **실행** 버튼으로 파이프라인 수동 실행 트리거
+
+### 🕒 스케줄러(옵저버) 개념
+- Castopod에 이미 존재하는 채널/플레이리스트 정보를 Automation Service에 저장한 뒤, 감시할 YouTube 플레이리스트 URL을 매핑합니다.
+- 스케줄은 “특정 요일/시간” 단위(주간 반복)로 등록되며, 지정 시간에 유튜브 플레이리스트를 조회 → Castopod 채널과 비교 → 신규 업로드만 다운로드해 Castopod에 추가하는 흐름입니다.
+- 스케줄 생성을 원하지 않는 플레이리스트는 큐에만 올려 수동으로 실행할 수 있습니다.
+
+### 🔄 자동화 기능 확장 로드맵
+| 영역 | 목표 | 세부 계획 |
+|------|------|-----------|
+| **채널 생성 마법사** | YouTube 플레이리스트 URL + Castopod 채널 정보를 입력하면 한 번에 다운로드·메타데이터 생성·Castopod 업로드까지 자동 처리 | Automation Service에 마법사 API 추가 → 파이프라인이 즉시 전체 다운로드 실행 → Castopod REST API 모듈로 채널/에피소드 생성 |
+| **증분 스케줄러** | 주 단위 요일/시간 스케줄러가 새로운 영상만 감지해 대상 Castopod 채널에 업로드 | 스케줄 모델에 Castopod 채널/UUID 매핑 + 정책 필드 추가 → `pipeline-run` 증분 모드(yt-dlp download archive) → Castopod 업로드 시 중복 체크 |
+| **통합 관리 UI** | TUI·웹 UI에서 CRUD, 수동 실행, 실행 로그 상세, 실시간 알림을 제공 | 큐 관리/실행 버튼 → WebSocket/알림 모듈 → 향후 Castopod/YouTube 자격 증명 관리 |
+
+세부 진행 상황은 체크리스트 6-3 하위 TODO와 work log에서 추적합니다.
 
 ---
 

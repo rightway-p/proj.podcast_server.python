@@ -15,6 +15,16 @@ class Settings(BaseSettings):
     pipeline_workdir: str | None = None
     pipeline_log_path: str | None = None
     cors_allow_origins: str | None = None
+    api_base_url: str | None = None
+    pipeline_skip_configuration: bool = False
+    castopod_api_base_url: str | None = None
+    castopod_api_username: str | None = None
+    castopod_api_password: str | None = None
+    castopod_api_user_id: str | None = None
+    castopod_api_timezone: str | None = None
+    castopod_api_publication_method: str | None = None
+    castopod_api_episode_type: str | None = None
+    castopod_api_verify_ssl: bool | None = None
 
     model_config = SettingsConfigDict(
         env_prefix="automation_",

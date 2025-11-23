@@ -10,11 +10,11 @@ services:
     command:
       # docker provider를 활성화하면 컨테이너 라벨 기반으로 라우팅 규칙을 자동 생성합니다.
       - --providers.docker=true
-      - --providers.docker.exposedbydefault=false  # 라벨이 없는 컨테이너는 외부 노출을 막습니다.
+      - --providers.docker.exposedbydefault=false # 라벨이 없는 컨테이너는 외부 노출을 막습니다.
       # 80, 443 포트를 각각 web, websecure 엔트리포인트로 정의합니다.
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-      - --api.dashboard=true  # 필요 시 8080 포트에서 Traefik 대시보드를 확인할 수 있습니다.
+      - --api.dashboard=true # 필요 시 8080 포트에서 Traefik 대시보드를 확인할 수 있습니다.
       # 아래 설정은 Let's Encrypt HTTP-01 챌린지를 이용해 인증서를 자동 발급하기 위한 값입니다.
       - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
@@ -23,47 +23,45 @@ services:
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
     ports:
-      - "80:80"      # HTTP 기본 포트
-      - "443:443"    # HTTPS 테스트용 (자체 서명 인증서 경고 발생 가능)
-      - "8080:8080"  # Traefik 대시보드(선택 사항)
+      - "80:80" # HTTP 기본 포트
+      - "443:443" # HTTPS 테스트용 (자체 서명 인증서 경고 발생 가능)
+      - "8080:8080" # Traefik 대시보드(선택 사항)
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # 컨테이너 메타 정보를 읽기 위한 Docker 소켓
-      - ./traefik:/letsencrypt                       # Traefik ACME 스토리지 및 로컬 설정 공유
-      - ./traefik/certs:/certs:ro                    # mkcert로 생성한 로컬 인증서 공유
-      - ./traefik/dynamic:/etc/traefik/dynamic:ro    # 동적 TLS 설정 파일
+      - /var/run/docker.sock:/var/run/docker.sock:ro # 컨테이너 메타 정보를 읽기 위한 Docker 소켓
+      - ./traefik:/letsencrypt # Traefik ACME 스토리지 및 로컬 설정 공유
+      - ./traefik/certs:/certs:ro # mkcert로 생성한 로컬 인증서 공유
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro # 동적 TLS 설정 파일
     networks:
       - proxy
     restart: unless-stopped
 
   castopod:
-    # Castopod 본체로, 팟캐스트 RSS 생성과 에피소드 업로드/관리를 담당합니다.
     image: castopod/castopod:latest
-    platform: linux/amd64  # Apple Silicon에서는 amd64 에뮬레이션으로 실행
+    platform: linux/amd64
     env_file: .env
     environment:
-      CP_DB_HOSTNAME: mariadb  # DB 호스트 이름을 docker 네트워크 서비스명으로 지정
-      CP_REDIS_HOSTNAME: redis # Redis 컨테이너의 호스트 이름
+      CP_DB_HOSTNAME: mariadb
+      CP_REDIS_HOSTNAME: redis
     depends_on:
-      # 데이터베이스와 Redis가 먼저 실행되고 준비될 때까지 대기합니다.
       mariadb:
         condition: service_healthy
       redis:
         condition: service_started
     volumes:
-      - ./data/media:/var/www/castopod/public/media  # 미디어 파일 실제 저장 위치
-      - ./data/backups:/backups                      # Castopod 내장 백업 파일 저장 위치
+      - ./data/media:/var/www/castopod/public/media
+      - ./data/backups:/backups
+      - ./modules.Api.Rest.V1.Config.RestApi.php:/var/www/castopod/modules/Api/Rest/V1/Config/RestApi.php:ro
+
     labels:
       - traefik.enable=true
-      # CP_HOST 환경변수에 적힌 도메인이나 localhost로 라우팅 규칙을 지정합니다.
       - traefik.http.routers.castopod.rule=Host(`${CP_HOST}`)
-      - traefik.http.routers.castopod.entrypoints=websecure  # HTTPS 엔트리포인트 사용 (localhost 기준)
+      - traefik.http.routers.castopod.entrypoints=websecure
       - traefik.http.routers.castopod.tls=true
-      # HTTPS 전환 시 위 라인을 websecure로 바꾸고, TLS 옵션을 추가하세요.
-      - traefik.http.services.castopod.loadbalancer.server.port=8000  # 컨테이너 내부 Castopod 포트
-      - traefik.docker.network=podcast-server_proxy  # Traefik이 접근할 네트워크 지정
+      - traefik.http.services.castopod.loadbalancer.server.port=8000
+      - traefik.docker.network=podcast-server_proxy
     networks:
-      - proxy   # Traefik과 통신하기 위한 네트워크
-      - backend # DB 및 Redis와 통신하기 위한 내부 네트워크
+      proxy: {}
+      backend: {}
     restart: unless-stopped
 
   mariadb:
@@ -71,19 +69,21 @@ services:
     image: mariadb:11
     env_file: .env
     environment:
-      MYSQL_DATABASE: ${CP_DB_DATABASE}       # 초기 생성할 데이터베이스 이름
-      MYSQL_USER: ${CP_DB_USERNAME}           # 애플리케이션에서 접속할 DB 사용자명
-      MYSQL_PASSWORD: ${CP_DB_PASSWORD}       # 해당 사용자의 비밀번호
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}  # 루트 비밀번호(관리 용도)
-      MYSQL_INITDB_SKIP_TZINFO: "1"           # 초기화 시 타임존 테이블 생성을 생략해 속도 향상
+      MYSQL_DATABASE: ${CP_DB_DATABASE} # 초기 생성할 데이터베이스 이름
+      MYSQL_USER: ${CP_DB_USERNAME} # 애플리케이션에서 접속할 DB 사용자명
+      MYSQL_PASSWORD: ${CP_DB_PASSWORD} # 해당 사용자의 비밀번호
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD} # 루트 비밀번호(관리 용도)
+      MYSQL_INITDB_SKIP_TZINFO: "1" # 초기화 시 타임존 테이블 생성을 생략해 속도 향상
     healthcheck:
       # mariadb-admin ping 명령으로 DB가 준비됐는지 주기적으로 확인합니다.
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mariadb-admin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "3306:3306" # 로컬 개발용 포트 노출 (Automation Service 등 외부에서 DB 읽기)
     volumes:
-      - ./data/db:/var/lib/mysql  # 실제 DB 데이터 파일이 저장되는 위치
+      - ./data/db:/var/lib/mysql # 실제 DB 데이터 파일이 저장되는 위치
     networks:
       - backend
     restart: unless-stopped
@@ -91,11 +91,11 @@ services:
   redis:
     # Redis는 Castopod의 캐시, 큐, 세션 등을 처리하는 인메모리 데이터 저장소입니다.
     image: redis:7-alpine
-    command: ["redis-server", "--save", "", "--appendonly", "no"]  # 스냅샷/로그 비활성화로 단순 운용
+    command: [ "redis-server", "--save", "", "--appendonly", "no" ] # 스냅샷/로그 비활성화로 단순 운용
     networks:
       - backend
     restart: unless-stopped
 
 networks:
-  proxy:   # Traefik과 외부 노출 서비스가 공유하는 네트워크
+  proxy: # Traefik과 외부 노출 서비스가 공유하는 네트워크
   backend: # 내부 서비스 간 통신 전용 네트워크

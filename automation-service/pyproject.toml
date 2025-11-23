@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "automation-service"
+version = "0.1.0"
+description = "REST API for managing podcast automation playlists, channels, and schedules"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110,<1.0",
+  "uvicorn[standard]>=0.24,<1.0",
+  "sqlmodel>=0.0.16,<0.0.21",
+  "pydantic-settings>=2.3,<3.0",
+  "pymysql>=1.1,<2.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.6,<0.8",
+  "pytest>=7.4,<8.0",
+  "httpx>=0.27,<0.28",
+  "pytest-asyncio>=0.23,<0.24"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["automation_service"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "B", "UP", "ASYNC"]
+ignore = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

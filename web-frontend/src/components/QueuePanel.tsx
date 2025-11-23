@@ -97,15 +97,15 @@ export function QueuePanel({
           <Text fontSize="xs" color="gray.400">
             {statusText}
           </Text>
-          <Button
-            size="sm"
-            colorScheme="blue"
-            onClick={onTriggerPipeline}
-            isLoading={triggeringPipeline}
-            isDisabled={pipelineStatus?.running}
-          >
-            큐 실행
-          </Button>
+              <Button
+                size="sm"
+                colorScheme="blue"
+                onClick={onTriggerPipeline}
+                isLoading={triggeringPipeline}
+                isDisabled={pipelineStatus?.running}
+              >
+                큐 전체 실행
+              </Button>
         </Stack>
       </Flex>
       <Stack spacing={3} mt={4}>
@@ -162,7 +162,7 @@ export function QueuePanel({
                 </Stack>
                 <HStack>
                   <Button size="sm" variant="outline" onClick={() => handleRun(job)} isDisabled={!canRun(job)}>
-                    실행
+                    수동 실행
                   </Button>
                   <Button
                     size="sm"

@@ -35,6 +35,10 @@ podcast-server/data/
 podcast-server/traefik/acme.json
 podcast-server/traefik/certs/*
 !podcast-server/traefik/certs/.gitkeep
+automation-service/.venv/
+automation-service/automation_service.db
+credentials.local.md
+web-frontend/node_modules/
 
 # 환경 변수 파일 (민감 정보)
 .env

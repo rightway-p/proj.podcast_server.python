@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pipeline-client"
+version = "0.1.0"
+description = "Pipeline runner that consumes the automation service API"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27,<0.29",
+  "pydantic>=2.10,<3.0",
+  "textual>=0.72,<0.75",
+  "yt-dlp>=2024.10.0",
+  "Pillow>=10.0,<11.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4,<8.0",
+  "pytest-asyncio>=0.23,<0.24"
+]
+
+[project.scripts]
+pipeline-tui = "pipeline_client.tui.app:run"
+pipeline-run = "pipeline_runner.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pipeline_client"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -10,19 +10,48 @@
   - [x] Docker Desktop 설치 완료
   - [x] 도메인/localhost 접속 방법 결정
   - [x] 기본 폴더 구조(`compose.yml`, `.env`, `data/`, `traefik/`) 준비
-- [ ] 4. Castopod 서버 실행
-  - [ ] `docker compose up -d` 실행해 서비스 구동
-  - [ ] 브라우저에서 Castopod 관리자 화면 접속
-  - [ ] 관리자 계정·첫 채널 생성
-  - [ ] RSS 피드 주소 확보
+- [x] 4. Castopod 서버 실행
+  - [x] `docker compose up -d` 실행해 서비스 구동
+  - [x] 브라우저에서 Castopod 관리자 화면 접속
+  - [x] 관리자 계정·첫 채널 생성
+  - [x] RSS 피드 주소 확보
 - [ ] 5. 유튜브 → 오디오 변환 테스트
-  - [ ] `yt-dlp` 설치 및 테스트 다운로드
-  - [ ] `ffmpeg`로 mp3 변환 확인
-  - [ ] 변환된 mp3를 Castopod에 수동 업로드
-- [ ] 6. 자동화 파이프라인 설계
-  - [ ] 스케줄러 주기 설정
-  - [ ] 다운로드, 변환, 메타데이터, 업로드 단계 정의
-  - [ ] yt-dlp, ffmpeg, Castopod API 연동 방식 결정
+  - [x] `yt-dlp` 설치 및 테스트 다운로드
+  - [x] `ffmpeg`로 mp3 변환 확인
+  - [x] 변환된 mp3를 Castopod에 수동 업로드
+- [x] 6. 자동화 파이프라인 설계
+  - [x] 스케줄러 주기 설정 — `supercronic` 기반 스케줄러 컨테이너에서 `0 7,19 * * *`(KST) 크론을 사용해 일 2회 자동 실행, 필요 시 `.env`의 `PIPELINE_CRON` 변수로 조정. *(세부 내용: `AI/automation_pipeline_plan.md` §2)*
+  - [x] 다운로드, 변환, 메타데이터, 업로드 단계 정의 — `watcher → downloader → transcoder → metadata → uploader → notifier` 순으로 큐에 적재하며, 각 단계는 성공 시 다음 단계에 JSON payload 전달, 실패 시 `dead-letter` 폴더에 로그 기록. *(세부 내용: `AI/automation_pipeline_plan.md` §3)*
+  - [x] yt-dlp, ffmpeg, Castopod API 연동 방식 결정 — `yt-dlp --write-info-json --no-playlist`로 원본 다운로드, `ffmpeg -i input -ac 2 -b:a 160k`로 mp3 표준화, Castopod REST API(`/api/episodes`) 호출 전용 Python 스크립트가 토큰(`CP_API_CLIENT_ID/SECRET`)으로 인증 후 에피소드 생성 및 mp3 업로드를 수행. *(세부 내용: `AI/automation_pipeline_plan.md` §3.3~3.6)*
+  - [x] 메타데이터에 정사각형 커버(`square_cover`, `thumbnail_square`) 경로를 포함하고 Pillow 기반 썸네일 변환을 테스트(`python -m pytest`)로 검증
+- [ ] 6-1. REST API + SQLite 백엔드 구축
+  - [x] FastAPI 프로젝트 초기화 및 Dockerfile 작성
+  - [x] SQLite 스키마 설계(`channels`, `playlists`, `schedules`, `runs`)
+  - [x] CRUD 엔드포인트 구현 및 OpenAPI 문서 노출
+  - [x] pytest 기반 API 테스트 코드 작성 및 실행 가능 상태 확보
+  - [x] 파이프라인 서비스가 API에서 설정을 읽도록 의존성 전환
+  - [x] `pipeline-run` CLI로 API 구성 기반 다운로드/시뮬레이션 실행(yt-dlp, ffmpeg 전제)
+  - [x] `pipeline/requirements-dev.txt`로 개발 의존성(Pillow, pytest 등) 일괄 설치 경로 확보 후 `conda run -n podcast python -m pytest` 검증 완료
+- [ ] 6-2. TUI 관리자 도구 구현
+  - [x] `Textual` 기반 CLI 앱 뼈대 작성 — `pipeline_client.tui.PipelineApp`에서 채널/플레이리스트/스케줄 트리를 표시합니다.
+  - [x] 플레이리스트/채널/스케줄 CRUD 화면 연결 — 모달 폼을 통해 생성·수정·삭제를 API와 연동했습니다.
+  - [x] 즉시 실행(Manual trigger) 기능 추가 — `t` 키로 즉시 실행 로그를 남기고 후속 구현을 위한 훅을 제공했습니다.
+- [x] 6-3. 웹 프런트엔드 (선택)
+  - [x] UI 프레임워크 결정 — React + Vite + Chakra UI 기반 `web-frontend/`를 생성했습니다.
+  - [x] 로그인/권한 모델 정의 — Bearer Token 입력 폼을 제공하고 토큰을 로컬 스토리지에 저장하여 향후 인증 확장에 대비했습니다.
+  - [x] 실행 현황 대시보드 및 로그 뷰어 구현 — 채널·플레이리스트·스케줄·최근 실행(run) 현황을 REST API에서 읽어 카드 형태로 시각화했습니다.
+  - [x] (2025-11-09) 웹에서 채널/플레이리스트/스케줄 CRUD 모달 제공 — Chakra Modal로 API 연동하여 즉시 생성/새로고침 지원
+  - [x] (2025-11-09) 실행 로그 상세 보기 + 필터/검색 + 수동 트리거 버튼 — Runs 패널에서 상태/메시지 필터와 수동 실행 트리거 제공
+  - [x] (2025-11-09) WebSocket 대비 자동 새로고침 — 30초 주기 자동 새로고침 토글로 실시간 모니터링 기반 마련(향후 WebSocket으로 전환 예정)
+  - [x] (2025-11-09) 인증·권한 UX 개선 — 토큰 저장/미저장 분리, 로그아웃, 토큰 없는 진입 지원
+  - [x] (신규) 작업 큐 패널 제공 — Castopod 슬러그/UUID/노트를 포함해 큐에 추가·제거하고 실행 버튼으로 `manual_trigger` run 생성
+  - [x] (신규) 스케줄 생성은 선택 기능으로 유지 — 감시만 할 플레이리스트는 스케줄 없이 큐 또는 수동 실행으로 처리
+- [ ] Castopod 연동
+  - [x] 플레이리스트 별로 Castopod 채널 Slug / 재생목록 UUID를 저장하는 필드 정의 (Automation Service + UI)
+  - [x] `docker compose exec mariadb mariadb -ucastouser -p'***' castopod -e "SELECT id, guid, title FROM cp_podcasts;"` 등으로 UUID를 조회하는 절차 문서화
+  - [x] 웹 UI에서 `Castopod DB 조회` 버튼으로 UUID/제목 목록을 불러와 선택 입력 (Automation Service가 Castopod DB에 읽기 접속 시)
+  - [x] 스케줄러 실행 시 매핑된 Castopod 채널에 새 에피소드를 자동 업로드하도록 `pipeline-run` 업로드 단계 구현
+  - [x] 큐 실행 시 “Castopod 업로드 수행” 옵션 추가 (기본은 수동)
 - [ ] 7. 대시보드 구상
   - [ ] 홈, 소스 관리, 라우팅, 로그, 저장소, 백업, 통계 탭 구성안 작성
   - [ ] 비개발자용 UX 고려사항 정리
@@ -37,3 +66,5 @@
   - [ ] 2주차: 수동 발행 및 RSS 검증
   - [ ] 3주차: 변환 도구 실습 완료
   - [ ] 4주차: 자동화 파이프라인 및 대시보드 설계 마무리
+
+> 기술 설명은 `AI/technical_notes.md`를 참고하세요.
