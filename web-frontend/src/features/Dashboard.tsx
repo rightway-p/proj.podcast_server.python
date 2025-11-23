@@ -291,42 +291,10 @@ export default function Dashboard({ token }: DashboardProps) {
         <Button leftIcon={<AddIcon />} variant="solid" colorScheme="teal" onClick={jobCreateModal.onOpen}>
           작업 생성
         </Button>
-        <Flex ml="auto" gap={4} wrap="wrap" align="center" justify="flex-end">
-          <HStack spacing={2}>
-            <Text fontSize="sm">자동 새로고침</Text>
-            <Switch isChecked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-          </HStack>
-          <Stack spacing={1} align="flex-end" minW="220px">
-            <HStack spacing={2}>
-              <Badge colorScheme={pipelineStatus?.running ? 'green' : 'gray'}>
-                {pipelineStatus?.running ? '실행 중' : '대기 중'}
-              </Badge>
-              {pipelineStatus?.running && pipelineStatus?.pid ? (
-                <Text fontSize="sm" color="gray.300">
-                  PID {pipelineStatus.pid}
-                </Text>
-              ) : null}
-            </HStack>
-            <Text fontSize="xs" color="gray.400">
-              {pipelineStatus?.running
-                ? `시작 ${pipelineStatus.started_at ? dayjs(pipelineStatus.started_at).format('MM-DD HH:mm:ss') : '-'}`
-                : pipelineStatus?.last_finished_at
-                ? `마지막 종료 ${dayjs(pipelineStatus.last_finished_at).format('MM-DD HH:mm:ss')} (코드 ${
-                    pipelineStatus.last_exit_code ?? '-'
-                  })`
-                : '실행 이력 없음'}
-            </Text>
-            <Button
-              size="sm"
-              colorScheme="blue"
-              onClick={handleTriggerPipeline}
-              isLoading={triggeringPipeline}
-              isDisabled={pipelineStatus?.running}
-            >
-              파이프라인 실행
-            </Button>
-          </Stack>
-        </Flex>
+        <HStack ml="auto" spacing={2}>
+          <Text fontSize="sm">자동 새로고침</Text>
+          <Switch isChecked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
+        </HStack>
       </Flex>
 
       {error ? (
@@ -462,7 +430,15 @@ export default function Dashboard({ token }: DashboardProps) {
               </Box>
             ))
           )}
-          <QueuePanel jobs={data.jobs} playlists={flatPlaylists} token={token} onChanged={() => load()} />
+          <QueuePanel
+            jobs={data.jobs}
+            playlists={flatPlaylists}
+            token={token}
+            onChanged={() => load(false)}
+            pipelineStatus={pipelineStatus}
+            onTriggerPipeline={handleTriggerPipeline}
+            triggeringPipeline={triggeringPipeline}
+          />
           <RunsPanel runs={data.runs} playlists={flatPlaylists} token={token} onTriggered={() => load()} />
         </Stack>
       ) : null}
