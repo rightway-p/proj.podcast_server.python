@@ -365,10 +365,14 @@ def quick_create_job(
     session.add(job)
     session.commit()
     session.refresh(job)
+    channel_data = schemas.ChannelRead.model_validate(channel, from_attributes=True)
+    playlist_data = schemas.PlaylistRead.model_validate(playlist, from_attributes=True)
+    job_data = schemas.JobRead.model_validate(job, from_attributes=True)
+
     return schemas.JobQuickCreateResponse(
-        channel=channel,
-        playlist=playlist,
-        job=job,
+        channel=channel_data,
+        playlist=playlist_data,
+        job=job_data,
         created_channel=created_channel,
         created_playlist=created_playlist,
     )
