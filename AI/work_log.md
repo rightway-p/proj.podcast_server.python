@@ -117,7 +117,20 @@
 - FastAPI의 `@app.on_event` 의존성을 lifespan 컨텍스트(`automation_service.main.lifespan`)로 대체해 시작 시 DB 초기화를 수행하도록 수정했습니다.
 - pytest를 다시 실행해 5개 테스트 모두 통과했으며, 기술 노트에 lifespan 전환 내용을 추가했습니다.
 
-## 2025-11-04 21:47 KST
+## 2025-11-23 15:45 KST
+- 사용자 요청에 따라 스케줄 자동 실행 및 선택 다운로드 기능을 명시적으로 추적할 수 있도록 `AI/podcast_automation_beginner_checklist.md`에 6-4 섹션을 추가했습니다.
+- 새로운 섹션에는 스케줄 CRUD/API, 백그라운드 스케줄러, 대시보드 UI, 작업 생성 폼 개선, 비교 로그 문서화 등 필요한 작업을 순차적으로 나열했습니다.
+- 향후 작업 기록을 위해 본 로그와 README 업데이트 지침을 재확인했습니다.
+
+## 2025-11-23 16:20 KST
+- 스케줄 데이터 모델을 요일/시간 기반(`days_of_week`, `run_time`)으로 교체하고 API 스키마·CRUD를 업데이트했습니다. SQLite 기존 테이블에 새 컬럼을 추가하는 마이그레이션 헬퍼도 포함했습니다.
+- FastAPI lifespan에 백그라운드 스케줄러를 연결해 1분 간격으로 활성 스케줄을 검사하고, 조건이 맞으면 `pipeline-run`을 자동 호출하도록 했습니다. 트리거 결과는 `last_run_at`, `next_run_at`에 기록됩니다.
+- `automation-service/README.md`, 루트 체크리스트, 테스트 코드 등을 새로운 스케줄 입력 방식에 맞게 갱신했습니다.
+
+## 2025-11-24 21:35 KST
+- 웹 대시보드에서 상단 “스케줄 추가” 버튼을 제거하고, 각 플레이리스트 카드 내에서 스케줄을 직접 추가할 수 있는 버튼을 추가했습니다. 버튼을 누르면 선택된 플레이리스트 ID가 프리필된 스케줄 모달이 열립니다.
+- `ScheduleModal` 컴포넌트를 플레이리스트 단일 선택 전용으로 단순화하고, 요일/시간 입력만 받도록 개선했습니다.
+- README에 새로운 스케줄 관리 플로우를 문서화하고 체크리스트 6-4 항목을 갱신했습니다.
 
 ## 2025-11-20 23:05 KST
 - 사용자 피드백을 바탕으로 “UI에서 최소 입력으로 작업 생성 → 파이프라인 실행 → 진행률 확인” 흐름을 명확히 정의했습니다.
@@ -179,3 +192,33 @@
 - 작업 큐 진행률/취소 기능을 추가했습니다. Automation Service `jobs` 테이블에 `progress_total`, `progress_completed`, `current_task`, `progress_message` 필드를 도입하고 `/jobs/{id}` 조회를 제공했습니다. SQLite 자동 마이그레이션을 확장하고 삭제 시 관련 데이터가 함께 제거되도록 관계에 cascade 옵션을 설정했습니다.
 - `pipeline-run`이 큐 작업을 처리할 때 단계별 상태를 PATCH하고, 각 에피소드 업로드마다 진행률을 업데이트합니다. 사용자가 웹에서 `취소`를 누르면 상태가 `cancelling`으로 바뀌고 파이프라인이 즉시 중단하며 `cancelled`로 마무리합니다.
 - 웹 대시보드 작업 큐 카드에 진행 단계, 퍼센트 Progress Bar, 메시지를 표시하고 취소 버튼을 추가했습니다. Manual run 버튼은 `queued` 상태에서만 활성화되며 진행 상황과 메시지를 표시합니다. README/문서도 새로운 UX와 REST API 설정을 반영했습니다.
+
+## 2025-11-24 13:15 KST
+- 웹 대시보드 플레이리스트 카드마다 스케줄 리스트에 수정/삭제 아이콘을 배치해 기존 스케줄을 바로 편집·제거할 수 있도록 했습니다. 모달은 선택된 스케줄 내용을 미리 채워 보여주고 삭제 버튼도 제공합니다.
+- `ScheduleModal` 구성요소가 생성/수정 모드를 모두 처리하도록 확장하고 삭제 시 확인 및 로딩 상태를 추가했습니다. API 클라이언트에 `updateSchedule`, `deleteSchedule` 요청 함수를 추가했습니다.
+- README와 체크리스트에 “카드 내 스케줄 수정/삭제 UX” 항목을 기록했습니다. 프런트엔드 변경 사항으로 별도 자동 테스트는 실행하지 않았으며, 브라우저에서 수동 검증이 필요합니다.
+
+## 2025-11-24 14:05 KST
+- 스케줄러가 조건을 만족하면 해당 플레이리스트용 Job을 자동으로 큐에 추가하고 `pipeline-run`을 호출하도록 `automation_service/scheduler.py`를 확장했습니다. 같은 플레이리스트에 `queued`/`in_progress` Job이 있으면 재사용하여 중복 실행을 막습니다. Job에는 `note="스케줄 자동 실행"`을 남겨 웹에서 식별할 수 있도록 했습니다.
+- Job 생성 시 Castopod 슬러그/UUID가 설정돼 있으면 `should_castopod_upload`를 자동 활성화해 완전 자동 업로드 플로우를 보장합니다.
+- 웹 대시보드가 새 스케줄 Job을 감지하면 토스트로 “스케줄 실행 시작” 알림을 띄우도록 했습니다. README, Automation Service README, 체크리스트에 “스케줄 → 큐 자동 연동” 내용을 문서화했습니다. 별도의 자동 테스트는 돌리지 않았으므로 실제 동작은 uvicorn 실행 + 스케줄 편집으로 검증해야 합니다.
+
+## 2025-11-24 15:10 KST
+- Automation Service에 `queue_runner` 백그라운드 워커를 추가해 파이프라인이 비어 있고 큐에 `queued` Job이 남아 있으면 자동으로 `pipeline-run`을 재실행하도록 했습니다. 새로운 환경 변수 `AUTOMATION_QUEUE_RUNNER_ENABLED` / `_INTERVAL_SECONDS`를 도입하고 lifespan에서 스케줄러와 함께 시작·종료합니다.
+- 큐 패널(UI)을 개선해 대기 중 작업 수를 한눈에 확인하고, 완료/실패 작업은 “최근 히스토리” 섹션으로 분리했습니다. API 요청 실패 시 토스트로 오류를 알려주도록 삭제·취소·수동 실행 핸들러에 예외 처리를 추가했습니다.
+- README와 Automation Service README, 체크리스트에 큐 러너 존재와 동작 방식을 문서화했습니다. 자동 테스트는 미실행입니다.
+
+## 2025-11-24 15:40 KST
+- Dockerfile을 재작성해 repo 루트 컨텍스트에서 automation-service와 pipeline-run을 모두 설치하고 ffmpeg/tini를 포함시켰습니다. 다운로드/DB/로그는 `/data` 볼륨으로 분리되고, `PIPELINE_DOWNLOAD_DIR` 기본값을 `/data/downloads`로 고정했습니다.
+- `automation-service/docker-compose.yml`과 `.env.docker`를 추가해 Castopod 스택과 별도로 Automation Service 컨테이너를 띄울 수 있게 했습니다. 호스트 DB 연결은 `host.docker.internal`을 사용하며, 결과물은 `automation-service/data/`에 영속화됩니다.
+- 루트 README와 automation-service README에 Docker 실행 절차를 문서화했습니다. `docker compose config`로 구성 검증만 수행했으며 실제 컨테이너 실행은 하지 않았습니다.
+
+## 2025-11-24 15:55 KST
+- 다운로드 산출물을 FastAPI에서 `/downloads/`와 `/downloads-browser` 경로로 제공하기 위해 `AUTOMATION_DOWNLOAD_ROOT` 설정을 추가하고 StaticFiles + 간단한 브라우저 HTML 페이지를 구현했습니다.
+- 웹 대시보드 큐 패널에 “다운로드 폴더 열기” 버튼을 추가해 `${API_BASE_URL}/downloads-browser`를 새 탭으로 띄우도록 했습니다.
+- README/automation-service README에 관련 설명을 보강했습니다. 프런트/백 모두 코드 변경만 적용했으며 추가 테스트는 수행하지 않았습니다.
+
+## 2025-11-25 00:20 KST
+- `automation-service/docker-compose.yml`에 web-frontend 서비스를 추가하고, Automation Service(18800) + Nginx 정적 사이트(18080)를 한 번에 올릴 수 있는 스택으로 구성했습니다. 웹 컨테이너는 Node/Vite 빌드 → Nginx 서빙 파이프라인을 사용하고, build arg로 `VITE_API_BASE_URL=http://automation-service:8000`을 주입합니다.
+- Docker 사용 시 호스트 포트를 18800/18080으로 조정해 다른 서비스와 충돌하지 않도록 했고, README/automation-service README에 새 포트를 문서화했습니다.
+- 작업 큐에 “전체 삭제” 기능을 추가했습니다. FastAPI에 `DELETE /jobs/` 엔드포인트를 만들고, 웹 대시보드 큐 패널에 버튼/토스트를 연결했습니다. 동시에 TypeScript 빌드 오류를 해결하기 위해 `@types/node`를 devDependency에 추가하고 `tsconfig.node.json`을 보강했으며, 중복된 `channel_id` 스프레드 경고를 없앴습니다.

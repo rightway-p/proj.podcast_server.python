@@ -7,6 +7,7 @@ services:
     # Traefik은 들어오는 HTTP/HTTPS 요청을 적절한 컨테이너로 라우팅하고,
     # 필요 시 Let's Encrypt 인증서를 자동 발급 및 갱신해 주는 리버스 프록시입니다.
     image: traefik:v3.0
+
     command:
       # docker provider를 활성화하면 컨테이너 라벨 기반으로 라우팅 규칙을 자동 생성합니다.
       - --providers.docker=true
@@ -57,6 +58,9 @@ services:
       - traefik.http.routers.castopod.rule=Host(`${CP_HOST}`)
       - traefik.http.routers.castopod.entrypoints=websecure
       - traefik.http.routers.castopod.tls=true
+      # 아래 두 줄은 HTTP 테스트용 구성입니다. 필요할 때만 주석을 해제하세요.
+      # - traefik.http.routers.castopod.entrypoints=web
+      # - traefik.http.routers.castopod.tls=false
       - traefik.http.services.castopod.loadbalancer.server.port=8000
       - traefik.docker.network=podcast-server_proxy
     networks:

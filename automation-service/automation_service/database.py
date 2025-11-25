@@ -21,6 +21,7 @@ def init_db() -> None:
     SQLModel.metadata.create_all(_engine)
     _ensure_job_upload_column()
     _ensure_run_progress_columns()
+    _ensure_schedule_columns()
 
 
 def _ensure_job_upload_column() -> None:
@@ -63,6 +64,25 @@ def _ensure_run_progress_columns() -> None:
             conn.execute(text("ALTER TABLE run ADD COLUMN current_task TEXT"))
         if "progress_message" not in columns:
             conn.execute(text("ALTER TABLE run ADD COLUMN progress_message TEXT"))
+
+
+def _ensure_schedule_columns() -> None:
+    """Ensure schedule table has day/time fields."""
+
+    if not _settings.database_url.startswith("sqlite"):
+        return
+    with _engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(schedule)"))
+        columns = {row[1] for row in result}
+        if "days_of_week" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE schedule ADD COLUMN days_of_week TEXT DEFAULT "
+                    "'[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\",\"sun\"]'"
+                )
+            )
+        if "run_time" not in columns:
+            conn.execute(text("ALTER TABLE schedule ADD COLUMN run_time TEXT DEFAULT '07:00'"))
 
 
 @contextmanager

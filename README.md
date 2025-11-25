@@ -122,7 +122,12 @@ npm run dev -- --host
 ```
 - Automation Service가 실행 중이어야 하며 기본 API 주소는 `http://127.0.0.1:8000`입니다.
 - 브라우저에서 `http://localhost:5173`로 접속하면 채널/플레이리스트/스케줄 CRUD, 실행 로그 필터/수동 실행, 자동 새로고침을 포함한 현황판을 사용할 수 있습니다.
-- 작업 큐: 플레이리스트 카드의 **큐에 추가** 버튼으로 Castopod 채널 정보와 함께 큐에 적재 → 큐 패널에서 제거/실행 → 실행 시 Automation Service `/jobs`와 `/runs`에 기록되므로 `pipeline-run`이 후속 다운로드를 수행합니다.
+- 스케줄 관리: 각 플레이리스트 카드의 스케줄 섹션에서 **추가** 버튼으로 새 스케줄을 만들고, 항목 옆 편집/삭제 아이콘으로 기존 스케줄을 수정·제거할 수 있습니다(상단 글로벌 스케줄 버튼 제거).
+- 스케줄이 실행되면 해당 플레이리스트 작업이 자동으로 큐에 추가되고 `pipeline-run`이 트리거되어 Castopod 업로드까지 처리합니다(동일 플레이리스트에 `queued`/`in_progress` Job이 있으면 중복 생성 없이 기존 작업을 사용).
+- 큐 러너가 백그라운드에서 대기하고 있다가 `queued` 작업이 존재하고 파이프라인이 비어 있으면 자동으로 `pipeline-run`을 재실행하므로, 스케줄이 동시에 여러 개 쌓여도 순차 처리됩니다.
+- 새로 생성된 스케줄 작업은 대시보드 오른쪽 상단에 토스트로 “스케줄 실행 시작” 알림이 표시되어 현재 어떤 플레이리스트가 동작 중인지 바로 확인할 수 있습니다.
+- 큐 패널 상단 **다운로드 폴더 열기** 버튼을 누르면 Automation Service의 `/downloads-browser` 페이지가 새 탭으로 열려, 하위 폴더와 파일을 탐색하고 각 항목을 직접 다운로드할 수 있습니다.
+- 작업 큐: 플레이리스트 카드의 **큐에 추가** 버튼으로 Castopod 채널 정보와 함께 큐에 적재 → 큐 패널에서 제거/실행(필요 시 **전체 삭제** 버튼으로 한 번에 정리) → 실행 시 Automation Service `/jobs`와 `/runs`에 기록되므로 `pipeline-run`이 후속 다운로드를 수행합니다.
 
 ### 빠른 실행 순서 (복붙용)
 1. 환경 준비 *(최초 1회)*
@@ -133,10 +138,11 @@ npm run dev -- --host
    ```
 2. Automation Service 실행 *(새 터미널)*
    ```bash
-   conda activate podcast
-   cd ~/WorkSpace/Dev/proj.podcastserver.python/automation-service
-   uvicorn automation_service.main:app --reload
-   ```
+ conda activate podcast
+ cd ~/WorkSpace/Dev/proj.podcastserver.python/automation-service
+ uvicorn automation_service.main:app --reload
+ ```
+- Docker로 실행하려면 `automation-service/.env.docker`를 필요에 맞게 수정한 뒤 같은 디렉터리에서 `docker compose up -d --build`를 수행하면 됩니다. Automation Service는 `http://127.0.0.1:18800`으로, 웹 대시보드는 `http://127.0.0.1:18080`으로 접근할 수 있습니다. SQLite/로그/다운로드 파일은 `automation-service/data/`에 저장되며, MariaDB(Castopod)에 접속하려면 `.env.docker`의 DB DSN을 `host.docker.internal` 등으로 조정하세요.
 3. 파이프라인 실행
    - 드라이런:
      ```bash

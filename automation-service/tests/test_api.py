@@ -97,7 +97,8 @@ def test_schedule_crud(client: TestClient, playlist_id: int) -> None:
         "/schedules/",
         json={
             "playlist_id": playlist_id,
-            "cron_expression": "0 7 * * *",
+            "days_of_week": ["mon", "wed"],
+            "run_time": "07:15",
             "timezone": "Asia/Seoul",
         },
     )
@@ -110,14 +111,16 @@ def test_schedule_crud(client: TestClient, playlist_id: int) -> None:
     assert list_response.json()[0]["id"] == schedule_id
 
     update_payload = {
-        "cron_expression": "30 19 * * *",
+        "days_of_week": ["fri"],
+        "run_time": "19:30",
         "timezone": "Asia/Tokyo",
         "next_run_at": datetime.now(UTC).isoformat(),
     }
     update_response = client.patch(f"/schedules/{schedule_id}", json=update_payload)
     assert update_response.status_code == 200
     updated = update_response.json()
-    assert updated["cron_expression"] == "30 19 * * *"
+    assert updated["days_of_week"] == ["fri"]
+    assert updated["run_time"] == "19:30"
     assert updated["timezone"] == "Asia/Tokyo"
 
     delete_response = client.delete(f"/schedules/{schedule_id}")
@@ -247,7 +250,8 @@ def test_delete_channel_cascade(client: TestClient) -> None:
         "/schedules/",
         json={
             "playlist_id": playlist["id"],
-            "cron_expression": "0 7 * * *",
+            "days_of_week": ["mon"],
+            "run_time": "07:00",
             "timezone": "Asia/Seoul",
         },
     )

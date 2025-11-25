@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from typing import List, Optional
 
+from sqlalchemy import Column, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -64,8 +65,17 @@ class Playlist(PlaylistBase, TimestampMixin, table=True):
     )
 
 
+def _default_days() -> list[str]:
+    return ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
 class ScheduleBase(SQLModel):
-    cron_expression: str = Field(min_length=5, max_length=120)
+    cron_expression: str = Field(default="0 7 * * *", max_length=120)
+    days_of_week: List[str] = Field(
+        default_factory=_default_days,
+        sa_column=Column(JSON, nullable=False, server_default="[]"),
+    )
+    run_time: str = Field(default="07:00", max_length=8)
     timezone: str = Field(default="Asia/Seoul", max_length=64)
     is_active: bool = Field(default=True)
     last_run_at: Optional[datetime] = Field(default=None)

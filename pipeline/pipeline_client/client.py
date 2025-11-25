@@ -28,7 +28,8 @@ class Playlist(BaseModel):
 class Schedule(BaseModel):
     id: int
     playlist_id: int
-    cron_expression: str
+    days_of_week: List[str]
+    run_time: str
     timezone: str
     is_active: bool
     last_run_at: Optional[datetime] = None
@@ -206,15 +207,17 @@ class AutomationServiceClient:
     async def create_schedule(
         self,
         playlist_id: int,
-        cron_expression: str,
+        days_of_week: Iterable[str],
         *,
+        run_time: str,
         timezone: str = "Asia/Seoul",
         is_active: bool = True,
         next_run_at: Optional[str] = None,
     ) -> Schedule:
-        payload = {
+        payload: dict[str, object] = {
             "playlist_id": playlist_id,
-            "cron_expression": cron_expression,
+            "days_of_week": list(days_of_week),
+            "run_time": run_time,
             "timezone": timezone,
             "is_active": is_active,
         }
@@ -228,14 +231,17 @@ class AutomationServiceClient:
         self,
         schedule_id: int,
         *,
-        cron_expression: Optional[str] = None,
+        days_of_week: Iterable[str] | None = None,
+        run_time: Optional[str] = None,
         timezone: Optional[str] = None,
         is_active: Optional[bool] = None,
         next_run_at: Optional[str] = None,
     ) -> Schedule:
         payload: dict[str, object] = {}
-        if cron_expression is not None:
-            payload["cron_expression"] = cron_expression
+        if days_of_week is not None:
+            payload["days_of_week"] = list(days_of_week)
+        if run_time is not None:
+            payload["run_time"] = run_time
         if timezone is not None:
             payload["timezone"] = timezone
         if is_active is not None:

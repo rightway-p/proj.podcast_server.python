@@ -82,7 +82,8 @@ class ScheduleSubmitted(Message):
         form: ModalScreen,
         playlist_id: int,
         schedule_id: Optional[int],
-        cron_expression: str,
+        days_of_week: list[str],
+        run_time: str,
         timezone: str,
         is_active: bool,
         next_run_at: Optional[str],
@@ -91,7 +92,8 @@ class ScheduleSubmitted(Message):
         self.form = form
         self.playlist_id = playlist_id
         self.schedule_id = schedule_id
-        self.cron_expression = cron_expression
+        self.days_of_week = days_of_week
+        self.run_time = run_time
         self.timezone = timezone
         self.is_active = is_active
         self.next_run_at = next_run_at
@@ -239,10 +241,16 @@ class ScheduleForm(ModalScreen[dict[str, Any] | None]):
             Label(title, id="form-title"),
             Label(f"플레이리스트: {self.playlist.title or self.playlist.youtube_playlist_id}", id="form-subtitle"),
             Input(
-                placeholder="cron expression",
-                value=self.schedule.cron_expression if self.schedule else "0 7 * * *",
-                id="cron",
-                validators=[Length(minimum=5)],
+                placeholder="요일 (예: mon,tue,wed)",
+                value=",".join(self.schedule.days_of_week) if self.schedule else "mon,tue,wed,thu,fri",
+                id="days",
+                validators=[Length(minimum=3)],
+            ),
+            Input(
+                placeholder="실행 시각 (HH:MM)",
+                value=self.schedule.run_time if self.schedule else "07:00",
+                id="run_time",
+                validators=[Length(minimum=4)],
             ),
             Input(
                 placeholder="timezone",
@@ -277,16 +285,21 @@ class ScheduleForm(ModalScreen[dict[str, Any] | None]):
 
     @on(Button.Pressed, "#save")
     def save(self) -> None:
-        cron_expression = self.query_one("#cron", Input).value.strip()
+        days_value = self.query_one("#days", Input).value.strip()
+        run_time = self.query_one("#run_time", Input).value.strip()
         timezone = self.query_one("#timezone", Input).value.strip() or "Asia/Seoul"
         is_active = self.query_one("#is_active", Checkbox).value
         next_run_value = self.query_one("#next_run", Input).value.strip() or None
+        days_of_week = [day.strip() for day in days_value.split(",") if day.strip()]
+        if not days_of_week:
+            days_of_week = ["mon"]
         self.app.post_message(
             ScheduleSubmitted(
                 form=self,
                 playlist_id=self.playlist.id,
                 schedule_id=self.schedule.id if self.schedule else None,
-                cron_expression=cron_expression,
+                days_of_week=days_of_week,
+                run_time=run_time or "07:00",
                 timezone=timezone,
                 is_active=is_active,
                 next_run_at=next_run_value,
@@ -393,7 +406,8 @@ class PipelineApp(App[None]):
             info.write(f"활성화: {'예' if playlist.is_active else '아니오'}")
         elif data.type == "schedule" and data.schedule:
             schedule = data.schedule
-            info.write(f"스케줄: cron {schedule.cron_expression}")
+            days = "/".join(schedule.days_of_week)
+            info.write(f"스케줄: {days} {schedule.run_time} ({schedule.timezone})")
             info.write(f"타임존: {schedule.timezone}")
             if schedule.next_run_at:
                 info.write(f"다음 실행: {schedule.next_run_at}")
@@ -437,7 +451,7 @@ class PipelineApp(App[None]):
             )
             for schedule in playlist_entry.schedules:
                 schedule_label = (
-                    f"⏱ {schedule.cron_expression} ({schedule.timezone})"
+                    f"⏱ {'/'.join(schedule.days_of_week)} {schedule.run_time} ({schedule.timezone})"
                 )
                 playlist_node.add(
                     schedule_label,
@@ -577,7 +591,8 @@ class PipelineApp(App[None]):
             if event.schedule_id is None:
                 await self.client.create_schedule(
                     playlist_id=event.playlist_id,
-                    cron_expression=event.cron_expression,
+                    days_of_week=event.days_of_week,
+                    run_time=event.run_time,
                     timezone=event.timezone,
                     is_active=event.is_active,
                     next_run_at=event.next_run_at,
@@ -586,7 +601,8 @@ class PipelineApp(App[None]):
             else:
                 await self.client.update_schedule(
                     event.schedule_id,
-                    cron_expression=event.cron_expression,
+                    days_of_week=event.days_of_week,
+                    run_time=event.run_time,
                     timezone=event.timezone,
                     is_active=event.is_active,
                     next_run_at=event.next_run_at,

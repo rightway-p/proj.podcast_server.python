@@ -104,6 +104,10 @@ class CastopodClient:
         self._episode_cache[podcast_id] = slugs
         return slugs
 
+    def get_episode_slugs(self, podcast_id: int) -> set[str]:
+        """Return a copy of the known episode slugs for the given podcast."""
+        return set(self._fetch_episode_slugs(podcast_id))
+
     def upload_episode(
         self,
         podcast_id: int,

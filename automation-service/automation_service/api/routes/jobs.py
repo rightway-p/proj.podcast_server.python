@@ -33,6 +33,12 @@ def delete_job(job_id: int, session: Session = Depends(get_session)):
     return None
 
 
+@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_jobs(session: Session = Depends(get_session)):
+    crud.delete_all_jobs(session)
+    return None
+
+
 @router.post(
     "/quick-create",
     response_model=schemas.JobQuickCreateResponse,

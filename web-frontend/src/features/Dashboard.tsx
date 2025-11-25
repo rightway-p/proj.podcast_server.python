@@ -35,6 +35,8 @@ import timezone from 'dayjs/plugin/timezone';
 import {
   fetchDashboardData,
   createSchedule,
+  updateSchedule,
+  deleteSchedule,
   createJob,
   updateChannel,
   deleteChannel,
@@ -52,8 +54,12 @@ import type {
   Playlist,
   Channel,
   ChannelFormInput,
+  Schedule,
+  ScheduleFormInput,
   PipelineStatus,
   JobQuickCreateInput,
+  DashboardChannel,
+  Job,
 } from '../api/types';
 import { ChannelModal } from '../components/forms/ChannelModal';
 import { ScheduleModal } from '../components/forms/ScheduleModal';
@@ -76,12 +82,20 @@ export default function Dashboard({ token }: DashboardProps) {
   const [error, setError] = useState<string | null>(null);
   const { colorMode, toggleColorMode } = useColorMode();
   const toast = useToast();
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8000';
+  const downloadBaseUrl = `${apiBaseUrl.replace(/\/$/, '')}/downloads-browser`;
 
   const channelModal = useDisclosure();
   const scheduleModal = useDisclosure();
   const queueModal = useDisclosure();
   const jobCreateModal = useDisclosure();
   const [queueTarget, setQueueTarget] = useState<Playlist | null>(null);
+  const [scheduleTarget, setScheduleTarget] = useState<Playlist | null>(null);
+  const [scheduleMode, setScheduleMode] = useState<'create' | 'edit'>('create');
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [deletingScheduleId, setDeletingScheduleId] = useState<number | null>(null);
+  const scheduleJobToastInitialized = useRef(false);
+  const knownScheduleJobIds = useRef<Set<number>>(new Set());
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
   const deleteDialog = useDisclosure();
@@ -109,6 +123,49 @@ export default function Dashboard({ token }: DashboardProps) {
     }
   };
 
+  const maybeToastScheduleJobs = (jobs: Job[], channels: DashboardChannel[]) => {
+    if (!scheduleJobToastInitialized.current) {
+      knownScheduleJobIds.current = new Set(jobs.map((job) => job.id));
+      scheduleJobToastInitialized.current = true;
+      return;
+    }
+    const playlistNameMap = new Map<number, string>();
+    channels.forEach((channel) => {
+      channel.playlists.forEach(({ playlist }) => {
+        playlistNameMap.set(playlist.id, playlist.title || playlist.youtube_playlist_id);
+      });
+    });
+    const seen = knownScheduleJobIds.current;
+    const now = Date.now();
+    const newJobs = jobs.filter((job) => {
+      if (seen.has(job.id)) {
+        return false;
+      }
+      const note = job.note ?? '';
+      if (!note.includes('스케줄') && !note.toLowerCase().includes('schedule')) {
+        return false;
+      }
+      if (!job.created_at) {
+        return false;
+      }
+      const created = new Date(job.created_at).getTime();
+      if (Number.isNaN(created)) {
+        return false;
+      }
+      return now - created <= 90_000;
+    });
+    newJobs.forEach((job) => {
+      const title = playlistNameMap.get(job.playlist_id) ?? `Playlist #${job.playlist_id}`;
+      toast({
+        title: '스케줄 실행 시작',
+        description: `${title} 작업이 자동으로 시작되었습니다.`,
+        status: 'info',
+        duration: 2500,
+      });
+    });
+    knownScheduleJobIds.current = new Set(jobs.map((job) => job.id));
+  };
+
   const load = async (withSpinner = true, notifyStatusError = false) => {
     if (withSpinner) {
       setLoading(true);
@@ -116,6 +173,7 @@ export default function Dashboard({ token }: DashboardProps) {
     setError(null);
     try {
       const response = await fetchDashboardData(token);
+      maybeToastScheduleJobs(response.jobs ?? [], response.channels ?? []);
       setData(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
@@ -215,10 +273,7 @@ export default function Dashboard({ token }: DashboardProps) {
   const bgCard = useColorModeValue('gray.50', 'gray.700');
   const flatChannels = data?.channels ?? [];
   const flatPlaylists: Playlist[] = useMemo(
-    () =>
-      flatChannels.flatMap((channel) =>
-        channel.playlists.map((entry) => ({ channel_id: channel.id, ...entry.playlist }))
-      ),
+    () => flatChannels.flatMap((channel) => channel.playlists.map((entry) => entry.playlist)),
     [flatChannels]
   );
 
@@ -261,6 +316,84 @@ export default function Dashboard({ token }: DashboardProps) {
     }
   };
 
+  const openScheduleModalForCreate = (playlist: Playlist) => {
+    setScheduleMode('create');
+    setEditingSchedule(null);
+    setScheduleTarget(playlist);
+    scheduleModal.onOpen();
+  };
+
+  const openScheduleModalForEdit = (playlist: Playlist, schedule: Schedule) => {
+    setScheduleMode('edit');
+    setEditingSchedule(schedule);
+    setScheduleTarget(playlist);
+    scheduleModal.onOpen();
+  };
+
+  const closeScheduleModal = () => {
+    setScheduleMode('create');
+    setEditingSchedule(null);
+    setScheduleTarget(null);
+    scheduleModal.onClose();
+  };
+
+  const handleScheduleSave = async (payload: ScheduleFormInput, scheduleId?: number) => {
+    const isUpdate = typeof scheduleId === 'number';
+    try {
+      if (isUpdate) {
+        await updateSchedule(scheduleId, payload, token);
+      } else {
+        await createSchedule(payload, token);
+      }
+      toast({
+        title: isUpdate ? '스케줄이 수정되었습니다.' : '스케줄이 생성되었습니다.',
+        status: 'success',
+        duration: 2000,
+      });
+      await load(false);
+    } catch (err) {
+      toast({
+        title: isUpdate ? '스케줄 수정 실패' : '스케줄 생성 실패',
+        description: err instanceof Error ? err.message : '알 수 없는 오류',
+        status: 'error',
+        duration: 3000,
+      });
+      throw err;
+    }
+  };
+
+  const performScheduleDelete = async (scheduleId: number) => {
+    try {
+      await deleteSchedule(scheduleId, token);
+      toast({ title: '스케줄이 삭제되었습니다.', status: 'success', duration: 2000 });
+      await load(false);
+    } catch (err) {
+      toast({
+        title: '스케줄 삭제 실패',
+        description: err instanceof Error ? err.message : '알 수 없는 오류',
+        status: 'error',
+        duration: 3000,
+      });
+      throw err;
+    }
+  };
+
+  const handleInlineScheduleDelete = async (schedule: Schedule) => {
+    if (!window.confirm('선택한 스케줄을 삭제할까요?')) {
+      return;
+    }
+    setDeletingScheduleId(schedule.id);
+    try {
+      await performScheduleDelete(schedule.id);
+    } finally {
+      setDeletingScheduleId(null);
+    }
+  };
+
+  const handleModalScheduleDelete = async (scheduleId: number) => {
+    await performScheduleDelete(scheduleId);
+  };
+
   return (
     <Stack spacing={6} py={6} px={4} maxW="6xl" mx="auto">
       <Flex justify="space-between" align="center">
@@ -285,9 +418,6 @@ export default function Dashboard({ token }: DashboardProps) {
       </Flex>
 
       <Flex gap={3} wrap="wrap" align="center">
-        <Button leftIcon={<AddIcon />} variant="outline" onClick={scheduleModal.onOpen} isDisabled={!flatPlaylists.length}>
-          스케줄 추가
-        </Button>
         <Button leftIcon={<AddIcon />} variant="solid" colorScheme="teal" onClick={jobCreateModal.onOpen}>
           작업 생성
         </Button>
@@ -370,19 +500,59 @@ export default function Dashboard({ token }: DashboardProps) {
                           {playlist.castopod_uuid ? <Text>Castopod UUID: {playlist.castopod_uuid}</Text> : null}
                         </Stack>
                       ) : null}
-                      <Text fontSize="sm" mt={3} fontWeight="bold">
-                        스케줄
-                      </Text>
+                      <HStack justify="space-between" mt={3} align="center">
+                        <Text fontSize="sm" fontWeight="bold">
+                          스케줄
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => openScheduleModalForCreate(playlist)}
+                        >
+                          추가
+                        </Button>
+                      </HStack>
                       {schedules.length === 0 ? (
                         <Text fontSize="sm" color="gray.500">
                           등록된 스케줄 없음
                         </Text>
                       ) : (
-                        schedules.map((schedule) => (
-                          <Text key={schedule.id} fontSize="sm">
-                            {schedule.cron_expression} ({schedule.timezone}) · 다음: {schedule.next_run_at || '-'}
-                          </Text>
-                        ))
+                        <Stack spacing={2} mt={2}>
+                          {schedules.map((schedule) => (
+                            <Flex key={schedule.id} align="center" justify="space-between">
+                              <Box>
+                                <Text fontSize="sm">
+                                  {schedule.days_of_week.join('/')} {schedule.run_time} ({schedule.timezone})
+                                </Text>
+                                <Text fontSize="xs" color="gray.500">
+                                  다음: {schedule.next_run_at || '-'}
+                                </Text>
+                              </Box>
+                              <HStack spacing={1}>
+                                <Tooltip label="스케줄 수정">
+                                  <IconButton
+                                    aria-label="edit schedule"
+                                    icon={<EditIcon />}
+                                    size="xs"
+                                    variant="ghost"
+                                    onClick={() => openScheduleModalForEdit(playlist, schedule)}
+                                  />
+                                </Tooltip>
+                                <Tooltip label="스케줄 삭제">
+                                  <IconButton
+                                    aria-label="delete schedule"
+                                    icon={<DeleteIcon />}
+                                    size="xs"
+                                    colorScheme="red"
+                                    variant="ghost"
+                                    isLoading={deletingScheduleId === schedule.id}
+                                    onClick={() => handleInlineScheduleDelete(schedule)}
+                                  />
+                                </Tooltip>
+                              </HStack>
+                            </Flex>
+                          ))}
+                        </Stack>
                       )}
                       <Text fontSize="sm" mt={3} fontWeight="bold">
                         최근 실행
@@ -438,6 +608,7 @@ export default function Dashboard({ token }: DashboardProps) {
             pipelineStatus={pipelineStatus}
             onTriggerPipeline={handleTriggerPipeline}
             triggeringPipeline={triggeringPipeline}
+            downloadUrl={downloadBaseUrl}
           />
           <RunsPanel runs={data.runs} playlists={flatPlaylists} token={token} onTriggered={() => load()} />
         </Stack>
@@ -463,13 +634,18 @@ export default function Dashboard({ token }: DashboardProps) {
       />
       <ScheduleModal
         isOpen={scheduleModal.isOpen}
-        onClose={scheduleModal.onClose}
-        playlists={flatPlaylists}
-        onSubmit={async (payload) => {
-          await createSchedule(payload, token);
-          toast({ title: '스케줄이 생성되었습니다.', status: 'success', duration: 2000 });
-          await load();
-        }}
+        onClose={closeScheduleModal}
+        playlist={scheduleTarget}
+        mode={scheduleMode}
+        schedule={editingSchedule}
+        onSubmit={handleScheduleSave}
+        onDelete={
+          scheduleMode === 'edit' && editingSchedule
+            ? async (scheduleId) => {
+                await handleModalScheduleDelete(scheduleId);
+              }
+            : undefined
+        }
       />
       <JobCreateModal
         isOpen={jobCreateModal.isOpen}

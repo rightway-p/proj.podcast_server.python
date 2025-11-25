@@ -333,6 +333,13 @@ def delete_job(session: Session, job_id: int) -> None:
     session.commit()
 
 
+def delete_all_jobs(session: Session) -> None:
+    jobs = session.exec(select(models.Job)).all()
+    for job in jobs:
+        session.delete(job)
+    session.commit()
+
+
 def quick_create_job(
     session: Session,
     data: schemas.JobQuickCreateRequest,

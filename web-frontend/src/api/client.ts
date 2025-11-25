@@ -115,6 +115,21 @@ export async function createSchedule(payload: ScheduleFormInput, token?: string)
   return data;
 }
 
+export async function updateSchedule(
+  scheduleId: number,
+  payload: Partial<ScheduleFormInput>,
+  token?: string,
+): Promise<Schedule> {
+  const client = buildClient(token);
+  const { data } = await client.patch<Schedule>(`/schedules/${scheduleId}`, payload);
+  return data;
+}
+
+export async function deleteSchedule(scheduleId: number, token?: string): Promise<void> {
+  const client = buildClient(token);
+  await client.delete(`/schedules/${scheduleId}`);
+}
+
 export async function triggerManualRun(playlistId: number, token?: string): Promise<RunRecord> {
   const client = buildClient(token);
   const { data } = await client.post<RunRecord>('/runs/', {
@@ -134,6 +149,11 @@ export async function createJob(payload: JobFormInput, token?: string): Promise<
 export async function deleteJobById(jobId: number, token?: string): Promise<void> {
   const client = buildClient(token);
   await client.delete(`/jobs/${jobId}`);
+}
+
+export async function deleteAllJobs(token?: string): Promise<void> {
+  const client = buildClient(token);
+  await client.delete('/jobs/');
 }
 
 export async function updateJobById(jobId: number, payload: Partial<Job>, token?: string): Promise<Job> {

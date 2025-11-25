@@ -3,7 +3,9 @@
     "composite": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["node"]
   },
   "include": ["vite.config.ts"]
 }

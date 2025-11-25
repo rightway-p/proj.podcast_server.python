@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     castopod_api_publication_method: str | None = None
     castopod_api_episode_type: str | None = None
     castopod_api_verify_ssl: bool | None = None
+    scheduler_enabled: bool = True
+    scheduler_interval_seconds: int = 60
+    queue_runner_enabled: bool = True
+    queue_runner_interval_seconds: int = 30
+    download_root: str = "downloads"
 
     model_config = SettingsConfigDict(
         env_prefix="automation_",

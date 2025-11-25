@@ -2,6 +2,7 @@ import {
   Badge,
   Box,
   Button,
+  Divider,
   Flex,
   Heading,
   HStack,
@@ -12,7 +13,7 @@ import {
 } from '@chakra-ui/react';
 import dayjs from 'dayjs';
 import type { Job, PipelineStatus, Playlist } from '../api/types';
-import { deleteJobById, triggerManualRun, updateJobById } from '../api/client';
+import { deleteAllJobs, deleteJobById, triggerManualRun, updateJobById } from '../api/client';
 
 interface QueuePanelProps {
   jobs: Job[];
@@ -22,6 +23,7 @@ interface QueuePanelProps {
   pipelineStatus: PipelineStatus | null;
   onTriggerPipeline: () => Promise<void>;
   triggeringPipeline: boolean;
+  downloadUrl?: string;
 }
 
 export function QueuePanel({
@@ -32,6 +34,7 @@ export function QueuePanel({
   pipelineStatus,
   onTriggerPipeline,
   triggeringPipeline,
+  downloadUrl,
 }: QueuePanelProps) {
   const toast = useToast();
   const playlistLookup = new Map(playlists.map((p) => [p.id, p]));
@@ -40,25 +43,66 @@ export function QueuePanel({
     metadata: '메타데이터 생성 중',
     uploading: 'Castopod 업로드 중',
   };
+  const activeStatuses = new Set(['queued', 'in_progress', 'cancelling']);
+  const activeJobs = jobs.filter((job) => activeStatuses.has(job.status));
+  const historyJobs = jobs
+    .filter((job) => !activeStatuses.has(job.status))
+    .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
+    .slice(0, 5);
+
+  const handleError = (title: string, err: unknown) => {
+    const detail = (err as any)?.response?.data?.detail;
+    toast({
+      title,
+      description: detail ?? (err instanceof Error ? err.message : '알 수 없는 오류'),
+      status: 'error',
+      duration: 3000,
+    });
+  };
 
   const handleDelete = async (jobId: number) => {
-    await deleteJobById(jobId, token);
-    toast({ title: '작업이 제거되었습니다.', status: 'info', duration: 2000 });
-    await onChanged();
+    try {
+      await deleteJobById(jobId, token);
+      toast({ title: '작업이 제거되었습니다.', status: 'info', duration: 2000 });
+      await onChanged();
+    } catch (err) {
+      handleError('작업 제거 실패', err);
+    }
   };
 
   const handleRun = async (job: Job) => {
-    await updateJobById(job.id, { status: 'in_progress', progress_message: '웹에서 즉시 실행', current_task: 'manual' }, token);
-    await triggerManualRun(job.playlist_id, token);
-    await updateJobById(job.id, { status: 'finished', current_task: null, progress_message: '수동 실행 완료' }, token);
-    toast({ title: '작업이 실행되었습니다.', status: 'success', duration: 2000 });
-    await onChanged();
+    try {
+      await updateJobById(job.id, { status: 'in_progress', progress_message: '웹에서 즉시 실행', current_task: 'manual' }, token);
+      await triggerManualRun(job.playlist_id, token);
+      await updateJobById(job.id, { status: 'finished', current_task: null, progress_message: '수동 실행 완료' }, token);
+      toast({ title: '작업이 실행되었습니다.', status: 'success', duration: 2000 });
+      await onChanged();
+    } catch (err) {
+      handleError('수동 실행 실패', err);
+    }
   };
 
   const handleCancel = async (job: Job) => {
-    await updateJobById(job.id, { status: 'cancelling', progress_message: '취소 요청 중' }, token);
-    toast({ title: '취소 요청을 보냈습니다.', status: 'info', duration: 2000 });
-    await onChanged();
+    try {
+      await updateJobById(job.id, { status: 'cancelling', progress_message: '취소 요청 중' }, token);
+      toast({ title: '취소 요청을 보냈습니다.', status: 'info', duration: 2000 });
+      await onChanged();
+    } catch (err) {
+      handleError('취소 요청 실패', err);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm('모든 작업을 삭제할까요? 진행 중인 작업도 즉시 중단됩니다.')) {
+      return;
+    }
+    try {
+      await deleteAllJobs(token);
+      toast({ title: '모든 작업이 삭제되었습니다.', status: 'info', duration: 2000 });
+      await onChanged();
+    } catch (err) {
+      handleError('작업 전체 삭제 실패', err);
+    }
   };
 
   const canCancel = (job: Job) => ['queued', 'in_progress'].includes(job.status);
@@ -82,6 +126,9 @@ export function QueuePanel({
           <Text fontSize="sm" color="gray.500">
             등록된 작업을 관리하고 필요 시 바로 실행하세요.
           </Text>
+          <Text fontSize="sm" color="gray.500">
+            대기 중 {activeJobs.length}건 / 전체 {jobs.length}건
+          </Text>
         </Stack>
         <Stack spacing={1} align="flex-end">
           <HStack spacing={2}>
@@ -97,20 +144,30 @@ export function QueuePanel({
           <Text fontSize="xs" color="gray.400">
             {statusText}
           </Text>
-              <Button
-                size="sm"
-                colorScheme="blue"
-                onClick={onTriggerPipeline}
-                isLoading={triggeringPipeline}
-                isDisabled={pipelineStatus?.running}
-              >
-                큐 전체 실행
-              </Button>
+          <HStack>
+            <Button
+              size="sm"
+              colorScheme="blue"
+              onClick={onTriggerPipeline}
+              isLoading={triggeringPipeline}
+              isDisabled={pipelineStatus?.running}
+            >
+              큐 전체 실행
+            </Button>
+            <Button size="sm" variant="outline" colorScheme="red" onClick={handleDeleteAll}>
+              전체 삭제
+            </Button>
+          </HStack>
+          {downloadUrl ? (
+            <Button as="a" href={downloadUrl} target="_blank" rel="noopener noreferrer" size="sm" variant="outline">
+              다운로드 폴더 열기
+            </Button>
+          ) : null}
         </Stack>
       </Flex>
       <Stack spacing={3} mt={4}>
-        {jobs.length === 0 ? <Text color="gray.500">대기 중인 작업이 없습니다.</Text> : null}
-        {jobs.map((job) => {
+        {activeJobs.length === 0 ? <Text color="gray.500">대기 중인 작업이 없습니다.</Text> : null}
+        {activeJobs.map((job) => {
           const playlist = playlistLookup.get(job.playlist_id);
           return (
             <Box key={job.id} borderWidth="1px" borderRadius="md" p={3}>
@@ -182,6 +239,51 @@ export function QueuePanel({
           );
         })}
       </Stack>
+      {historyJobs.length ? (
+        <>
+          <Divider my={4} />
+          <Stack spacing={2}>
+            <Heading size="sm">최근 완료/실패 작업</Heading>
+            {historyJobs.map((job) => {
+              const playlist = playlistLookup.get(job.playlist_id);
+              return (
+                <Flex
+                  key={`history-${job.id}`}
+                  borderWidth="1px"
+                  borderRadius="md"
+                  p={2}
+                  justify="space-between"
+                  align={{ base: 'flex-start', md: 'center' }}
+                  direction={{ base: 'column', md: 'row' }}
+                  gap={2}
+                >
+                  <Stack spacing={0}>
+                    <Text fontSize="sm" fontWeight="bold">
+                      {playlist?.title || playlist?.youtube_playlist_id || `Playlist #${job.playlist_id}`}
+                    </Text>
+                    <HStack spacing={1}>
+                      <Badge colorScheme={job.status === 'finished' ? 'green' : job.status === 'failed' ? 'red' : 'gray'}>
+                        {job.status}
+                      </Badge>
+                      {job.progress_message ? (
+                        <Text fontSize="xs" color="gray.500">
+                          {job.progress_message}
+                        </Text>
+                      ) : null}
+                    </HStack>
+                    <Text fontSize="xs" color="gray.400">
+                      {dayjs(job.updated_at).format('MM-DD HH:mm')}
+                    </Text>
+                  </Stack>
+                  <Button size="xs" variant="ghost" colorScheme="red" onClick={() => handleDelete(job.id)}>
+                    제거
+                  </Button>
+                </Flex>
+              );
+            })}
+          </Stack>
+        </>
+      ) : null}
     </Box>
   );
 }

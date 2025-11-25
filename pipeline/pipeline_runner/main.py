@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, time
 from pathlib import Path
+from threading import Event
 from typing import Any, Iterable
 
 from rich.console import Console
@@ -96,6 +97,8 @@ class JobCancelledError(Exception):
 class JobTracker:
     client: AutomationServiceClient
     job: Job
+    _cancel_event: Event = field(default_factory=Event, init=False)
+    _watch_task: asyncio.Task | None = field(default=None, init=False)
 
     async def patch(self, **fields: Any) -> Job:
         self.job = await self.client.update_job(self.job.id, **fields)
@@ -106,9 +109,45 @@ class JobTracker:
         return self.job
 
     async def ensure_active(self) -> None:
+        if self._cancel_event.is_set():
+            raise JobCancelledError
         current = await self.refresh()
         if current.status == "cancelling":
+            self._cancel_event.set()
             raise JobCancelledError
+
+    async def start_watch(self) -> None:
+        if self._watch_task is not None:
+            return
+        loop = asyncio.get_running_loop()
+        self._watch_task = loop.create_task(self._poll_cancellation())
+
+    async def stop_watch(self) -> None:
+        if self._watch_task is None:
+            return
+        self._watch_task.cancel()
+        try:
+            await self._watch_task
+        except asyncio.CancelledError:
+            pass
+        self._watch_task = None
+
+    async def _poll_cancellation(self) -> None:
+        try:
+            while not self._cancel_event.is_set():
+                current = await self.refresh()
+                if current.status == "cancelling":
+                    self._cancel_event.set()
+                    break
+                await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            await asyncio.sleep(1.0)
+
+    @property
+    def cancel_event(self) -> Event:
+        return self._cancel_event
 
 
 @dataclass
@@ -132,9 +171,15 @@ async def download_playlist(
     download_dir: Path,
     audio_format: str,
     dry_run: bool,
+    existing_slugs: set[str] | None = None,
+    job_tracker: JobTracker | None = None,
 ) -> DownloadResult:
     if YoutubeDL is None:  # pragma: no cover - fallback for missing dependency
         raise RuntimeError("yt-dlp is not installed in this environment")
+
+    def _check_cancel() -> None:
+        if job_tracker and job_tracker.cancel_event.is_set():
+            raise JobCancelledError
 
     playlist_url = build_playlist_url(pipeline_playlist.playlist.youtube_playlist_id)
 
@@ -156,22 +201,48 @@ async def download_playlist(
             }
         ],
     }
-    if dry_run:
-        ydl_opts["skip_download"] = True
-
-    def _run() -> tuple[int, list[EpisodeRecord], dict[str, Any] | None]:
-        episodes: list[EpisodeRecord] = []
+    def _run() -> tuple[int, list[EpisodeRecord], dict[str, Any] | None, int]:
+        metadata_opts = dict(ydl_opts)
+        metadata_opts["skip_download"] = True
+        metadata_opts.pop("postprocessors", None)
         playlist_info: dict[str, Any] | None = None
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(playlist_url, download=not dry_run)
+        filtered_entries: list[dict[str, Any]] = []
+        skipped_existing = 0
+        with YoutubeDL(metadata_opts) as meta_ydl:
+            _check_cancel()
+            info = meta_ydl.extract_info(playlist_url, download=False)
             playlist_info = info if isinstance(info, dict) else None
-            if not info:
-                return 0, episodes, playlist_info
-            entries = info.get("entries") or []
-            for entry in entries:
-                if not entry:
-                    continue
-                base_filename = Path(ydl.prepare_filename(entry))
+            entries = playlist_info.get("entries") if playlist_info else []
+            if entries:
+                for entry in entries:
+                    _check_cancel()
+                    if not entry:
+                        continue
+                    slug_source = entry.get("id") or entry.get("title") or ""
+                    slug = slugify(slug_source)
+                    if existing_slugs and slug in existing_slugs:
+                        skipped_existing += 1
+                        continue
+                    filtered_entries.append(entry)
+
+        episodes: list[EpisodeRecord] = []
+        if not filtered_entries:
+            return 0, episodes, playlist_info, skipped_existing
+
+        download_opts = dict(ydl_opts)
+        download_opts.pop("skip_download", None)
+        with YoutubeDL(download_opts) as ydl:
+            for entry in filtered_entries:
+                _check_cancel()
+                entry_url = (
+                    entry.get("original_url")
+                    or entry.get("webpage_url")
+                    or entry.get("url")
+                )
+                info = entry
+                if entry_url and not dry_run:
+                    info = ydl.extract_info(entry_url, download=True)
+                base_filename = Path(ydl.prepare_filename(info))
                 audio_path = base_filename.with_suffix(f".{audio_format}")
                 info_path = base_filename.with_suffix(".info.json")
                 thumbnail_path = None
@@ -180,26 +251,30 @@ async def download_playlist(
                     if candidate.exists():
                         thumbnail_path = candidate
                         break
-                thumbnails = entry.get("thumbnails")
+                thumbnails = info.get("thumbnails")
                 episodes.append(
                     EpisodeRecord(
-                        video_id=entry.get("id", ""),
-                        title=entry.get("title", ""),
-                        description=entry.get("description"),
-                        webpage_url=entry.get("webpage_url"),
-                        upload_date=entry.get("upload_date"),
-                        duration=entry.get("duration"),
+                        video_id=info.get("id", ""),
+                        title=info.get("title", ""),
+                        description=info.get("description"),
+                        webpage_url=info.get("webpage_url"),
+                        upload_date=info.get("upload_date"),
+                        duration=info.get("duration"),
                         audio_path=audio_path,
                         info_path=info_path if info_path.exists() else None,
                         thumbnail_path=thumbnail_path,
-                        thumbnail_url=entry.get("thumbnail"),
+                        thumbnail_url=info.get("thumbnail"),
                         thumbnails=list(thumbnails) if thumbnails else None,
                     )
                 )
         episodes.sort(key=_episode_sort_key)
-        return len(episodes), episodes, playlist_info
+        return len(episodes), episodes, playlist_info, skipped_existing
 
-    downloaded, episodes, playlist_info = await asyncio.to_thread(_run)
+    downloaded, episodes, playlist_info, skipped_existing = await asyncio.to_thread(_run)
+    if skipped_existing:
+        console.print(
+            f"[yellow]{skipped_existing}개 에피소드는 Castopod에 이미 존재하여 건너뜀[/yellow]"
+        )
     return DownloadResult(playlist_url, downloaded, dry_run, episodes, playlist_info)
 
 
@@ -326,6 +401,14 @@ async def process_playlist_entry(
     playlist_dir = download_root / channel_entry.channel.slug / (
         playlist.title or playlist.youtube_playlist_id
     )
+
+    podcast_id: int | None = None
+    existing_slugs: set[str] | None = None
+    if castopod_client and (playlist.castopod_slug or playlist.castopod_uuid):
+        podcast_id = castopod_client.resolve_podcast_id(playlist)
+        if podcast_id is not None:
+            existing_slugs = castopod_client.get_episode_slugs(podcast_id)
+
     run_record = await client.create_run(
         playlist_id=playlist.id,
         status="in_progress",
@@ -352,6 +435,8 @@ async def process_playlist_entry(
             playlist_dir,
             audio_format,
             dry_run,
+            existing_slugs=existing_slugs,
+            job_tracker=job_tracker,
         )
         write_playlist_metadata(
             playlist_dir,
@@ -387,6 +472,7 @@ async def process_playlist_entry(
                 castopod_client,
                 playlist_entry,
                 result,
+                podcast_id=podcast_id,
                 job_tracker=job_tracker,
                 run_tracker=run_tracker,
             )
@@ -466,11 +552,13 @@ async def upload_playlist_to_castopod(
     castopod_client: CastopodClient,
     playlist_entry: PipelinePlaylist,
     result: DownloadResult,
+    podcast_id: int | None = None,
     job_tracker: JobTracker | None = None,
     run_tracker: RunTracker | None = None,
 ) -> None:
     playlist = playlist_entry.playlist
-    podcast_id = castopod_client.resolve_podcast_id(playlist)
+    if podcast_id is None:
+        podcast_id = castopod_client.resolve_podcast_id(playlist)
     if podcast_id is None:
         console.print(
             f"[yellow]경고:[/yellow] Castopod podcast를 찾을 수 없습니다 — "
@@ -562,6 +650,7 @@ async def process_job_queue(
             progress_message="대기 중",
         )
         channel_entry, playlist_entry = mapping
+        await tracker.start_watch()
         try:
             result = await process_playlist_entry(
                 client,
@@ -599,6 +688,8 @@ async def process_job_queue(
                 current_task=None,
             )
             console.print(f"[red]작업 실패[/red] — Job #{job.id}: {exc}")
+        finally:
+            await tracker.stop_watch()
     return results
 
 async def process_configuration(

@@ -64,7 +64,8 @@ async def test_fetch_configuration_returns_nested_structure(http_client: AsyncCl
 
     schedule_payload = {
         "playlist_id": playlist_id,
-        "cron_expression": "0 7 * * *",
+        "days_of_week": ["mon", "wed"],
+        "run_time": "07:00",
         "timezone": "Asia/Seoul",
         "next_run_at": datetime.now(UTC).isoformat(),
     }
@@ -84,7 +85,7 @@ async def test_fetch_configuration_returns_nested_structure(http_client: AsyncCl
     playlist_entry = channel_entry.playlists[0]
     assert playlist_entry.playlist.youtube_playlist_id == "PL123"
     assert len(playlist_entry.schedules) == 1
-    assert playlist_entry.schedules[0].cron_expression == "0 7 * * *"
+    assert playlist_entry.schedules[0].days_of_week == ["mon", "wed"]
 
 
 @pytest.mark.asyncio
@@ -128,12 +129,13 @@ async def test_crud_helpers_modify_resources(http_client: AsyncClient) -> None:
 
         schedule = await client.create_schedule(
             playlist_id=playlist.id,
-            cron_expression="0 12 * * *",
+            days_of_week=["mon"],
+            run_time="12:00",
             timezone="Asia/Tokyo",
         )
         assert schedule.timezone == "Asia/Tokyo"
 
-        await client.update_schedule(schedule.id, cron_expression="0 6 * * *")
+        await client.update_schedule(schedule.id, days_of_week=["fri"], run_time="06:00")
 
         # delete operations should not raise
         await client.delete_schedule(schedule.id)
