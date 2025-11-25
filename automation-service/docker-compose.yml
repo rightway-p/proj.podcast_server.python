@@ -1,0 +1,26 @@
+services:
+  automation-service:
+    build:
+      context: ..
+      dockerfile: automation-service/Dockerfile
+    container_name: automation-service
+    env_file:
+      - .env.docker
+    ports:
+      - "18800:8000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  web-frontend:
+    build:
+      context: ../web-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:18800
+    container_name: automation-web
+    depends_on:
+      - automation-service
+    ports:
+      - "18080:80"
+    restart: unless-stopped
