@@ -47,3 +47,10 @@ podcast-server/.env
 
 # 기타
 *.bak
+automation-service/data/
+automation-service/.env.docker
+web-frontend/tsconfig*.tsbuildinfo
+web-frontend/vite.config.js
+web-frontend/vite.config.d.ts
+pipeline/downloads/
+pipeline/pipeline-run.log
