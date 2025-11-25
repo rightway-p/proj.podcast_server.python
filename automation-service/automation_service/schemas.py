@@ -60,24 +60,102 @@ class PlaylistRead(BaseModel):
     updated_at: datetime
 
 
+def _normalize_days(values: list[str]) -> list[str]:
+    if not values:
+        msg = "at least one day must be selected"
+        raise ValueError(msg)
+    normalized: list[str] = []
+    allowed = {
+        "mon": "mon",
+        "monday": "mon",
+        "tue": "tue",
+        "tuesday": "tue",
+        "wed": "wed",
+        "wednesday": "wed",
+        "thu": "thu",
+        "thursday": "thu",
+        "fri": "fri",
+        "friday": "fri",
+        "sat": "sat",
+        "saturday": "sat",
+        "sun": "sun",
+        "sunday": "sun",
+    }
+    for raw in values:
+        key = (raw or "").strip().lower()
+        value = allowed.get(key)
+        if value is None:
+            short = key[:3]
+            value = allowed.get(short)
+        if value is None:
+            msg = f"invalid day value '{raw}'"
+            raise ValueError(msg)
+        if value not in normalized:
+            normalized.append(value)
+    return normalized
+
+
+def _validate_time(value: str) -> str:
+    parts = value.split(":")
+    if len(parts) != 2:
+        msg = "run_time must be in HH:MM format"
+        raise ValueError(msg)
+    hour, minute = parts
+    if not hour.isdigit() or not minute.isdigit():
+        msg = "run_time must contain digits only"
+        raise ValueError(msg)
+    h, m = int(hour), int(minute)
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        msg = "run_time must be a valid 24h time"
+        raise ValueError(msg)
+    return f"{h:02d}:{m:02d}"
+
+
 class ScheduleCreate(BaseModel):
     playlist_id: int
-    cron_expression: str
+    days_of_week: list[str]
+    run_time: str = "07:00"
     timezone: str = "Asia/Seoul"
     is_active: bool = True
 
+    @field_validator("days_of_week")
+    @classmethod
+    def validate_days(cls, value: list[str]) -> list[str]:
+        return _normalize_days(value)
+
+    @field_validator("run_time")
+    @classmethod
+    def validate_run_time(cls, value: str) -> str:
+        return _validate_time(value)
+
 
 class ScheduleUpdate(BaseModel):
-    cron_expression: str | None = None
+    days_of_week: list[str] | None = None
+    run_time: str | None = None
     timezone: str | None = None
     is_active: bool | None = None
     next_run_at: datetime | None = None
+
+    @field_validator("days_of_week")
+    @classmethod
+    def validate_days(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        return _normalize_days(value)
+
+    @field_validator("run_time")
+    @classmethod
+    def validate_run_time(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_time(value)
 
 
 class ScheduleRead(BaseModel):
     id: int
     playlist_id: int
-    cron_expression: str
+    days_of_week: list[str]
+    run_time: str
     timezone: str
     is_active: bool
     last_run_at: datetime | None
@@ -172,6 +250,7 @@ class CastopodPodcastRead(BaseModel):
     id: int
     uuid: str
     title: str
+    slug: str
 
 
 class PipelineStatus(BaseModel):

@@ -49,11 +49,12 @@ export function JobCreateModal({
   const [form, setForm] = useState<JobQuickCreateInput>(defaultForm);
   const [submitting, setSubmitting] = useState(false);
   const [selectedUuid, setSelectedUuid] = useState<string>('');
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   const castopodOptions = useMemo(
     () =>
       castopodPodcasts.map((podcast) => ({
-        label: podcast.title,
+        label: `${podcast.title} (${podcast.slug})`,
         value: podcast.uuid,
       })),
     [castopodPodcasts],
@@ -63,19 +64,22 @@ export function JobCreateModal({
     if (!isOpen) {
       setForm(defaultForm);
       setSelectedUuid('');
+      setSlugManuallyEdited(false);
     }
   }, [isOpen]);
 
   const handleSelectCastopod = (uuid: string) => {
     setSelectedUuid(uuid);
     if (!uuid) {
+      setSlugManuallyEdited(false);
+      setForm((prev) => ({ ...prev, castopod_uuid: '', castopod_slug: '' }));
       return;
     }
     const match = castopodPodcasts.find((podcast) => podcast.uuid === uuid);
     setForm((prev) => ({
       ...prev,
       castopod_uuid: uuid,
-      castopod_slug: prev.castopod_slug || match?.title?.toLowerCase().replace(/\s+/g, '-') || '',
+      castopod_slug: slugManuallyEdited ? prev.castopod_slug ?? '' : match?.slug ?? '',
     }));
   };
 
@@ -141,7 +145,10 @@ export function JobCreateModal({
               <FormLabel>Castopod 채널 Slug</FormLabel>
               <Input
                 value={form.castopod_slug ?? ''}
-                onChange={(e) => setForm({ ...form, castopod_slug: e.target.value })}
+                onChange={(e) => {
+                  setSlugManuallyEdited(true);
+                  setForm({ ...form, castopod_slug: e.target.value });
+                }}
                 placeholder="예: my-podcast"
               />
             </FormControl>

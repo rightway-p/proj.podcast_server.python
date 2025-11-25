@@ -64,7 +64,7 @@ def list_castopod_podcasts():
     try:
         with engine.connect() as conn:
             rows = conn.execute(
-                text("SELECT id, guid AS uuid, title FROM cp_podcasts ORDER BY id DESC")
+                text("SELECT id, guid AS uuid, title, handle AS slug FROM cp_podcasts ORDER BY id DESC")
             )
             return [CastopodPodcastRead(**row._mapping) for row in rows]
     except SQLAlchemyError as exc:

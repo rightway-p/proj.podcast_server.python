@@ -27,7 +27,10 @@ pipeline-tui = "pipeline_client.tui.app:run"
 pipeline-run = "pipeline_runner.main:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["pipeline_client"]
+packages = [
+  "pipeline_client",
+  "pipeline_runner"
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

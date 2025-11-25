@@ -19,12 +19,14 @@ export interface CastopodPodcast {
   id: number;
   uuid: string;
   title: string;
+  slug: string;
 }
 
 export interface Schedule {
   id: number;
   playlist_id: number;
-  cron_expression: string;
+  days_of_week: string[];
+  run_time: string;
   timezone: string;
   is_active: boolean;
   next_run_at?: string | null;
@@ -87,7 +89,8 @@ export interface PlaylistFormInput {
 
 export interface ScheduleFormInput {
   playlist_id: number;
-  cron_expression: string;
+  days_of_week: string[];
+  run_time: string;
   timezone: string;
   is_active?: boolean;
 }

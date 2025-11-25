@@ -50,6 +50,14 @@ export function PlaylistModal({
   );
   const [form, setForm] = useState<PlaylistFormInput>(initialForm);
   const [submitting, setSubmitting] = useState(false);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setForm(initialForm);
+      setSlugManuallyEdited(false);
+    }
+  }, [initialForm, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -60,7 +68,22 @@ export function PlaylistModal({
       }
       return { ...prev, channel_id: defaultChannelId };
     });
+    setSlugManuallyEdited(false);
   }, [channels, defaultChannelId, isOpen]);
+
+  const handleSelectCastopodPodcast = (uuid: string) => {
+    if (!uuid) {
+      setSlugManuallyEdited(false);
+      setForm((prev) => ({ ...prev, castopod_uuid: '', castopod_slug: '' }));
+      return;
+    }
+    const match = castopodPodcasts.find((podcast) => podcast.uuid === uuid);
+    setForm((prev) => ({
+      ...prev,
+      castopod_uuid: uuid,
+      castopod_slug: slugManuallyEdited ? prev.castopod_slug ?? '' : match?.slug ?? '',
+    }));
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -110,7 +133,14 @@ export function PlaylistModal({
             </FormControl>
             <FormControl>
               <FormLabel>Castopod 채널 Slug</FormLabel>
-              <Input value={form.castopod_slug ?? ''} onChange={(e) => setForm({ ...form, castopod_slug: e.target.value })} placeholder="예: rw_test2" />
+              <Input
+                value={form.castopod_slug ?? ''}
+                onChange={(e) => {
+                  setSlugManuallyEdited(true);
+                  setForm({ ...form, castopod_slug: e.target.value });
+                }}
+                placeholder="예: rw_test2"
+              />
             </FormControl>
             <FormControl>
               <FormLabel>Castopod 재생목록 UUID</FormLabel>
@@ -127,12 +157,12 @@ export function PlaylistModal({
                     castopodPodcasts.length ? 'Castopod 재생목록을 선택하세요' : '위 버튼으로 목록을 불러와 선택하세요'
                   }
                   value={form.castopod_uuid ?? ''}
-                  onChange={(e) => setForm({ ...form, castopod_uuid: e.target.value })}
+                  onChange={(e) => handleSelectCastopodPodcast(e.target.value)}
                   isDisabled={!castopodPodcasts.length}
                 >
                   {castopodPodcasts.map((podcast) => (
                     <option key={podcast.id} value={podcast.uuid}>
-                      {podcast.title} ({podcast.uuid})
+                      {podcast.title} ({podcast.slug})
                     </option>
                   ))}
                 </Select>
